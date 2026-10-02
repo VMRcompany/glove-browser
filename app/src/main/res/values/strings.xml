@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glove Browser</string>
+    <string name="search_hint">Введите запрос или адрес</string>
+    <string name="new_tab">Новая вкладка</string>
+    <string name="incognito">Новая вкладка инкогнито</string>
+    <string name="bookmarks">Закладки</string>
+    <string name="history">История</string>
+    <string name="downloads">Загрузки</string>
+    <string name="forward">Вперёд</string>
+    <string name="reload">Обновить</string>
+    <string name="stop">Остановить</string>
+    <string name="share">Поделиться</string>
+    <string name="find">Найти на странице</string>
+    <string name="add_bookmark">Добавить в закладки</string>
+    <string name="remove_bookmark">Удалить закладку</string>
+    <string name="desktop">Версия для ПК</string>
+    <string name="settings">Настройки</string>
+    <string name="copy_link">Копировать ссылку</string>
+    <string name="tabs">Вкладки</string>
+    <string name="done">Готово</string>
+    <string name="home">Главная страница</string>
+    <string name="empty">Пока пусто</string>
+    <string name="clear">Очистить</string>
+    <string name="secure">Соединение защищено</string>
+    <string name="insecure">Соединение не защищено</string>
+    <string name="open">Открыть</string>
+    <string name="open_new">Открыть в новой вкладке</string>
+    <string name="download">Скачать</string>
+    <string name="intro_title">Добро пожаловать</string>
+    <string name="intro_body">Строка сверху открывает адрес или поиск Orion. Квадрат рядом с ней показывает вкладки. Три точки — закладки, история, загрузки и версия для ПК.</string>
+    <string name="intro_default">Сделать браузером по умолчанию</string>
+    <string name="intro_start">Начать</string>
+    <string name="duplicate">Дублировать вкладку</string>
+    <string name="reopen">Открыть закрытую вкладку</string>
+    <string name="zoom_in">Увеличить</string>
+    <string name="zoom_out">Уменьшить</string>
+    <string name="close_others">Закрыть другие вкладки</string>
+    <string name="news">Новости</string>
+</resources>

@@ -1,0 +1,181 @@
+:root {
+  color-scheme: light;
+  --strip: #dee1e6;
+  --ink: #202124;
+  --muted: #5f6368;
+  --line: #dadce0;
+  --omnibox: #f1f3f4;
+  --accent: #1a73e8;
+  font-family: "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--strip);
+  color: var(--ink);
+  user-select: none;
+}
+
+body.incognito {
+  --strip: #202124;
+  --ink: #e8eaed;
+  --muted: #9aa0a6;
+  --line: #3c4043;
+  --omnibox: #303134;
+}
+
+#tabstrip {
+  height: 40px;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px 0 0 8px;
+  background: var(--strip);
+}
+
+#tabs {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  max-width: calc(100% - 180px);
+  overflow: hidden;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 220px;
+  max-width: 220px;
+  height: 34px;
+  margin: 0 2px;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  transition: background 160ms ease;
+}
+
+.tab.active { background: #fff; }
+body.incognito .tab.active { background: #292a2d; color: #fff; }
+
+.tab span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-size: 13px;
+}
+
+.tab .x {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab .x:hover { background: rgba(0, 0, 0, 0.08); }
+
+.drag { flex: 1; height: 34px; -webkit-app-region: drag; }
+
+button.icon, button.win {
+  -webkit-app-region: no-drag;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button.icon {
+  width: 34px;
+  height: 34px;
+  margin: 0 1px 3px;
+  border-radius: 50%;
+  font-size: 16px;
+}
+
+button.icon:hover, button.win:hover { background: rgba(0, 0, 0, 0.08); }
+button.icon:disabled { opacity: 0.35; }
+
+button.win {
+  width: 46px;
+  height: 34px;
+  margin-bottom: 3px;
+  font-size: 14px;
+}
+
+button.win.close:hover { background: #e81123; color: #fff; }
+
+#toolbar {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+body.incognito #toolbar { background: #292a2d; }
+
+#omnibox {
+  flex: 1;
+  margin: 0 6px;
+}
+
+#address {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  border-radius: 17px;
+  padding: 0 16px;
+  background: var(--omnibox);
+  color: var(--ink);
+  font: 14px "Segoe UI", sans-serif;
+  outline: none;
+  user-select: text;
+  transition: box-shadow 160ms ease, background 160ms ease;
+}
+
+#address:focus { background: #fff; box-shadow: 0 0 0 2px var(--accent); }
+body.incognito #address:focus { background: #202124; }
+
+#findbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+#findbar[hidden] { display: none; }
+
+#findQuery {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 8px;
+  font: inherit;
+}
+
+#findNext, #findClose {
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}

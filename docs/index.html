@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Glove Browser</title>
+  <style>
+    :root { color-scheme: light; --ink: #202124; --muted: #5f6368; --line: #dadce0; --green: #234230; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Roboto, sans-serif; color: var(--ink); background: #fff; }
+    header { display: flex; align-items: center; justify-content: space-between; height: 72px; padding: 0 32px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; }
+    .brand img, .hero img { border-radius: 18px; }
+    nav a { color: var(--ink); text-decoration: none; margin-left: 20px; }
+    .hero { max-width: 880px; margin: 0 auto; padding: 64px 24px 28px; }
+    h1 { font-size: 52px; line-height: 1.05; font-weight: 500; letter-spacing: -1.4px; margin: 18px 0 16px; }
+    .lead { font-size: 20px; color: var(--muted); max-width: 640px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .btn { display: inline-flex; align-items: center; height: 44px; padding: 0 18px; border-radius: 22px; text-decoration: none; font-weight: 600; }
+    .btn.primary { background: var(--green); color: #fff; }
+    .btn.ghost { border: 1px solid var(--line); color: var(--ink); }
+    section { max-width: 880px; margin: 0 auto; padding: 12px 24px 48px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    article { border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+    h2 { font-weight: 500; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    p { line-height: 1.5; }
+    footer { border-top: 1px solid var(--line); padding: 24px 32px 40px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+    footer img { width: 28px; height: 28px; border-radius: 7px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><img src="logo.png" width="36" height="36" alt="">Glove Browser</div>
+    <nav>
+      <a href="#about">О браузере</a>
+      <a href="#download">Скачать</a>
+    </nav>
+  </header>
+  <div class="hero">
+    <img src="logo.png" width="96" height="96" alt="Glove Browser">
+    <h1>Glove Browser</h1>
+    <p class="lead">Свой браузер со вкладками, закладками, историей и поиском Orion. На телефоне — строка адреса и сетка вкладок. На компьютере — полоса вкладок и панель навигации.</p>
+    <div class="actions" id="download">
+      <a class="btn primary" href="downloads/GloveBrowser.apk">Скачать для Android</a>
+      <a class="btn ghost" href="downloads/GloveBrowser-Setup.exe">Скачать для Windows</a>
+    </div>
+  </div>
+  <section id="about">
+    <h2>Что внутри</h2>
+    <div class="grid">
+      <article>
+        <h3>Вкладки</h3>
+        <p>Несколько страниц рядом, превью на телефоне и полоса вкладок на компьютере. Есть режим инкогнито.</p>
+      </article>
+      <article>
+        <h3>Orion</h3>
+        <p>Стартовая страница с логотипом Glove и поиском. Внизу — лента новостей из нескольких источников.</p>
+      </article>
+      <article>
+        <h3>Библиотека</h3>
+        <p>Закладки, история, загрузки, поиск по странице и очистка данных.</p>
+      </article>
+      <article>
+        <h3>Версия для ПК</h3>
+        <p>На телефоне этот пункт открывает широкую вёрстку сайта.</p>
+      </article>
+    </div>
+  </section>
+  <section>
+    <h2>Системы</h2>
+    <p>Минимальная версия Android — 8.0. Установщик Windows рассчитан на 64-битные Windows 7, 8, 10 и 11.</p>
+  </section>
+  <footer><img src="logo.png" alt="">Glove Browser · glove.mineholde.pro</footer>
+</body>
+</html>

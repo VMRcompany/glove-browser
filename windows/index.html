@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Glove Browser</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header id="tabstrip">
+    <div id="tabs"></div>
+    <button id="add" class="icon" title="Новая вкладка" type="button">+</button>
+    <div class="drag"></div>
+    <button id="min" class="win" type="button" title="Свернуть">&#8211;</button>
+    <button id="max" class="win" type="button" title="Развернуть">&#9633;</button>
+    <button id="close" class="win close" type="button" title="Закрыть">&#10005;</button>
+  </header>
+  <nav id="toolbar">
+    <button id="back" class="icon" type="button" title="Назад">&#8592;</button>
+    <button id="forward" class="icon" type="button" title="Вперёд">&#8594;</button>
+    <button id="reload" class="icon" type="button" title="Обновить">&#8635;</button>
+    <button id="home" class="icon" type="button" title="Главная">&#8962;</button>
+    <form id="omnibox">
+      <input id="address" type="text" spellcheck="false" placeholder="Введите запрос или адрес" autocomplete="off" />
+    </form>
+    <button id="menu" class="icon" type="button" title="Настройка и управление">&#8942;</button>
+  </nav>
+  <div id="findbar" hidden>
+    <input id="findQuery" type="text" placeholder="Найти на странице" />
+    <button id="findNext" type="button">Далее</button>
+    <button id="findClose" type="button">Закрыть</button>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

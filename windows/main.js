@@ -1,0 +1,648 @@
+const { app, BrowserWindow, BrowserView, Menu, clipboard, dialog, shell, ipcMain, session } = require("electron");
+const { spawn } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const https = require("https");
+
+const logoData = "data:image/png;base64," + fs.readFileSync(path.join(__dirname, "logo.png")).toString("base64");
+
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36";
+
+const windows = new Set();
+let tabSeq = 1;
+
+function libraryFile() {
+  return path.join(app.getPath("userData"), "library.json");
+}
+
+function loadLibrary() {
+  try {
+    const data = JSON.parse(fs.readFileSync(libraryFile(), "utf8"));
+    return {
+      bookmarks: data.bookmarks || [],
+      history: data.history || [],
+      downloads: data.downloads || []
+    };
+  } catch {
+    return { bookmarks: [], history: [], downloads: [] };
+  }
+}
+
+function saveLibrary(data) {
+  fs.mkdirSync(path.dirname(libraryFile()), { recursive: true });
+  fs.writeFileSync(libraryFile(), JSON.stringify(data));
+}
+
+function addHistory(title, url) {
+  if (!url || !/^https?:/i.test(url)) return;
+  const data = loadLibrary();
+  data.history = [{ title: title || url, url, time: Date.now() }, ...data.history.filter((item) => item.url !== url)].slice(0, 200);
+  saveLibrary(data);
+}
+
+function addDownload(name, file) {
+  const data = loadLibrary();
+  data.downloads = [{ title: name, url: file, time: Date.now() }, ...data.downloads].slice(0, 100);
+  saveLibrary(data);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function page(title, body) {
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", sans-serif; color: #202124; background: #fff; }
+    .ntp { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; }
+    .logo { font-size: 48px; font-weight: 500; letter-spacing: -1px; margin: 8px 0 20px; }
+    .mark { width: 88px; height: 88px; border-radius: 22px; }
+    .news { width: min(640px, 100%); margin-top: auto; padding-top: 36px; }
+    .news h2 { font-size: 16px; font-weight: 500; }
+    .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; }
+    .story b { display: block; }
+    .story span { color: #234230; font-size: 12px; }
+    form input { width: min(560px, 86vw); height: 44px; border: 1px solid #dfe1e5; border-radius: 22px; padding: 0 18px; font-size: 16px; outline: none; }
+    form input:focus { box-shadow: 0 1px 6px rgba(32,33,36,.28); }
+    .serp { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+    .hit { display: block; text-decoration: none; margin: 0 0 22px; }
+    .hit strong { display: block; color: #1a0dab; font-size: 20px; font-weight: 400; }
+    .hit span { display: block; color: #188038; font-size: 13px; margin: 2px 0; word-break: break-all; }
+    .hit em { display: block; color: #4d5156; font-style: normal; font-size: 14px; }
+    .row { display: block; padding: 12px 0; border-bottom: 1px solid #dadce0; text-decoration: none; color: inherit; }
+    .row b { display: block; }
+    .row span { color: #188038; font-size: 13px; word-break: break-all; }
+    .note { color: #5f6368; }
+    button { margin-top: 16px; }
+  </style></head><body>${body}</body></html>`;
+}
+
+function homeHtml(shortcuts) {
+  const tiles = (shortcuts || []).slice(0, 8).map((item) =>
+    `<a class="row" href="${escapeHtml(item.url)}"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.url)}</span></a>`
+  ).join("");
+  return page("Glove Browser", `<main class="ntp"><div class="hero" style="display:flex;flex-direction:column;align-items:center">
+    <img class="mark" src="${logoData}" alt="">
+    <div class="logo">Glove</div>
+    <form action="https://orion.glove/search" method="get"><input name="q" placeholder="Введите запрос или адрес" autofocus></form>
+    <div style="width:min(560px,86vw);margin-top:28px">${tiles}</div></div>
+    <section class="news"><h2>Новости</h2><div id="news"><p class="note">Собираем новости…</p></div></section></main>
+    <script>function gloveNews(html){ var n=document.getElementById("news"); if(n) n.innerHTML=html; }</script>`);
+}
+
+function resultsHtml(query, hits, note) {
+  const items = hits.map((hit) => `<a class="hit" href="${escapeHtml(hit.url)}"><strong>${escapeHtml(hit.title)}</strong><span>${escapeHtml(hit.url)}</span><em>${escapeHtml(hit.snippet || "")}</em></a>`).join("");
+  const extra = note ? `<p class="note">${escapeHtml(note)}</p>` : "";
+  const empty = !hits.length && !note ? `<p class="note">Ничего не нашлось.</p>` : items;
+  return page(query, `<main class="serp"><form action="https://orion.glove/search" method="get"><input name="q" value="${escapeHtml(query)}"></form>${extra}<section>${empty}</section></main>`);
+}
+
+function listHtml(kind, items) {
+  const titles = { bookmarks: "Закладки", history: "История", downloads: "Загрузки", settings: "Настройки" };
+  if (kind === "settings") {
+    return page("Настройки", `<main class="serp"><h1>Настройки</h1>
+      <p>Glove Browser 1.3.0<br>Поиск Orion<br>Windows 7 и новее</p>
+      <p><a href="https://orion.glove/clear-history">Очистить историю</a></p>
+      <p><a href="https://orion.glove/clear-bookmarks">Очистить закладки</a></p></main>`);
+  }
+  const rows = items.length
+    ? items.map((item) => `<a class="row" href="${escapeHtml(item.url)}"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.url)}</span></a>`).join("")
+    : `<p class="note">Пока пусто.</p>`;
+  return page(titles[kind], `<main class="serp"><h1>${titles[kind]}</h1>${rows}</main>`);
+}
+
+function fetchText(url) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.0", Accept: "text/html" } }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        fetchText(response.headers.location).then(resolve, reject);
+        response.resume();
+        return;
+      }
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    });
+    request.setTimeout(15000, () => request.destroy(new Error("timeout")));
+    request.on("error", reject);
+  });
+}
+
+function clean(html) {
+  return html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+}
+
+function unwrap(href) {
+  try {
+    const value = href.replace(/&amp;/g, "&");
+    const found = new URL(value, "https://html.duckduckgo.com").searchParams.get("uddg");
+    return found || value;
+  } catch {
+    return href;
+  }
+}
+
+async function search(query) {
+  const html = await fetchText("https://html.duckduckgo.com/html/?q=" + encodeURIComponent(query));
+  const links = [...html.matchAll(/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gis)];
+  const snippets = [...html.matchAll(/<(?:a|td)[^>]*class="result__snippet"[^>]*>(.*?)<\/(?:a|td)>/gis)].map((match) => clean(match[1]));
+  return links.slice(0, 12).map((match, index) => {
+    const url = unwrap(match[1]);
+    return { title: clean(match[2]) || url, url, snippet: snippets[index] || "" };
+  }).filter((hit) => /^https?:/i.test(hit.url));
+}
+
+function looksLikeUrl(text) {
+  const lower = text.toLowerCase();
+  if (lower.startsWith("http://") || lower.startsWith("https://")) return true;
+  return !text.includes(" ") && (text.includes(".") || lower.startsWith("localhost"));
+}
+
+function normalize(text) {
+  const lower = text.toLowerCase();
+  return lower.startsWith("http://") || lower.startsWith("https://") ? text : "https://" + text;
+}
+
+function introFile() {
+  return path.join(app.getPath("userData"), "intro.json");
+}
+
+function introDone() {
+  try { return JSON.parse(fs.readFileSync(introFile(), "utf8")).done === true; }
+  catch { return false; }
+}
+
+function markIntro() {
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(introFile(), JSON.stringify({ done: true }));
+}
+
+function openDefaultApps() {
+  const release = os.release();
+  if (release.startsWith("6.")) {
+    spawn("control", ["/name", "Microsoft.DefaultPrograms"], { detached: true, stdio: "ignore" }).unref();
+  } else {
+    shell.openExternal("ms-settings:defaultapps");
+  }
+}
+
+function introHtml() {
+  return page("Glove Browser", `<main class="ntp" style="padding-top:12vh">
+    <img class="mark" src="${logoData}" alt="">
+    <div class="logo">Glove</div>
+    <p class="note" style="max-width:520px;text-align:center">Строка сверху открывает адрес или поиск Orion. Вкладки стоят над ней. Меню справа открывает закладки, историю и загрузки.</p>
+    <p><a href="https://orion.glove/make-default">Сделать браузером по умолчанию</a></p>
+    <p><a href="https://orion.glove/intro-done">Начать</a></p>
+  </main>`);
+}
+
+let newsCache = { at: 0, html: "" };
+
+function plain(value) {
+  return String(value || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+}
+
+async function rssStories(url, source) {
+  try {
+    const xml = await fetchText(url);
+    return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].slice(0, 4).map((match) => {
+      const block = match[1];
+      const title = plain((block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i) || [])[1]);
+      const href = ((block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<\]]+)/i) || [])[1] || "").trim();
+      return title && href ? { title, url: href, source } : null;
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function wikiStories() {
+  const day = new Date();
+  const stamp = day.getUTCFullYear() + "/" + String(day.getUTCMonth() + 1).padStart(2, "0") + "/" + String(day.getUTCDate()).padStart(2, "0");
+  try {
+    const news = JSON.parse(await fetchText("https://ru.wikipedia.org/api/rest_v1/feed/featured/" + stamp)).news || [];
+    return news.slice(0, 3).map((item) => {
+      const link = (item.links || [])[0];
+      const page = link && link.content_urls && link.content_urls.desktop && link.content_urls.desktop.page;
+      return page ? { title: link.title || item.story, url: page, source: "Википедия" } : null;
+    }).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function loadNews() {
+  if (newsCache.html && Date.now() - newsCache.at < 15 * 60 * 1000) return newsCache.html;
+  const dzen = await rssStories("https://dzen.ru/news/rss", "Дзен");
+  const [google, wiki, lenta, fallback] = await Promise.all([
+    rssStories("https://news.google.com/rss?hl=ru&gl=RU&ceid=RU:ru", "Google Новости"),
+    wikiStories(),
+    rssStories("https://lenta.ru/rss/news", "Лента"),
+    dzen.length ? Promise.resolve([]) : rssStories("https://news.yandex.ru/index.rss", "Дзен")
+  ]);
+  const stories = [...google, ...dzen, ...fallback, ...wiki, ...lenta]
+    .filter((item, index, all) => all.findIndex((other) => other.title === item.title) === index)
+    .slice(0, 12);
+  const html = stories.length
+    ? stories.map((story) => `<a class="story" href="${escapeHtml(story.url)}"><b>${escapeHtml(story.title)}</b><span>${escapeHtml(story.source)}</span></a>`).join("")
+    : `<p class="note">Новости сейчас недоступны.</p>`;
+  newsCache = { at: Date.now(), html };
+  return html;
+}
+
+function createWindow(incognito) {
+  const partition = incognito ? `incognito-${Date.now()}` : "persist:glove";
+  const browserSession = session.fromPartition(partition);
+  const win = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    minWidth: 720,
+    minHeight: 480,
+    frame: false,
+    icon: path.join(__dirname, "logo.ico"),
+    backgroundColor: incognito ? "#202124" : "#dee1e6",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  const state = {
+    win,
+    incognito,
+    session: browserSession,
+    tabs: [],
+    activeId: 0,
+    chromeHeight: 88,
+    ready: false,
+    closed: []
+  };
+  windows.add(state);
+
+  browserSession.on("will-download", (_event, item) => {
+    const file = path.join(app.getPath("downloads"), item.getFilename());
+    item.setSavePath(file);
+    item.once("done", (_done, itemState) => {
+      if (itemState === "completed" && !incognito) addDownload(item.getFilename(), file);
+    });
+  });
+
+  function activeTab() {
+    return state.tabs.find((tab) => tab.id === state.activeId) || null;
+  }
+
+  function layout() {
+    const tab = activeTab();
+    if (!tab) return;
+    const [width, height] = win.getContentSize();
+    const top = state.chromeHeight;
+    tab.view.setBounds({ x: 0, y: top, width, height: Math.max(0, height - top) });
+  }
+
+  function publish() {
+    const tab = activeTab();
+    const contents = tab && tab.view.webContents;
+    const url = contents && !contents.isDestroyed() ? contents.getURL() : "";
+    const home = !url || url.startsWith("data:");
+    win.webContents.send("state", {
+      tabs: state.tabs.map((item) => ({
+        id: item.id,
+        title: item.title,
+        active: item.id === state.activeId
+      })),
+      canBack: !!(contents && contents.canGoBack()),
+      canForward: !!(contents && contents.canGoForward()),
+      loading: !!(contents && contents.isLoading()),
+      home,
+      display: home ? "" : url
+    });
+    layout();
+  }
+
+  function showHtml(tab, html) {
+    tab.view.webContents.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+  }
+
+  async function openAddress(tab, raw) {
+    const text = String(raw || "").trim();
+    if (!text) return showHome(tab);
+    if (text.startsWith("https://orion.glove")) return handleOrion(tab, text);
+    if (looksLikeUrl(text)) tab.view.webContents.loadURL(normalize(text));
+    else await runSearch(tab, text);
+  }
+
+  function showHome(tab) {
+    const shortcuts = incognito ? [] : loadLibrary().bookmarks;
+    tab.title = "Новая вкладка";
+    const contents = tab.view.webContents;
+    contents.once("did-finish-load", () => {
+      loadNews().then((body) => {
+        if (contents.isDestroyed()) return;
+        contents.executeJavaScript("typeof gloveNews==='function'&&gloveNews(" + JSON.stringify(body) + ")").catch(() => {});
+      });
+    });
+    showHtml(tab, homeHtml(shortcuts));
+    publish();
+  }
+
+  async function runSearch(tab, query) {
+    tab.title = query;
+    try {
+      const hits = await search(query);
+      if (!state.tabs.includes(tab)) return;
+      showHtml(tab, resultsHtml(query, hits));
+    } catch {
+      if (!state.tabs.includes(tab)) return;
+      showHtml(tab, resultsHtml(query, [], "Не удалось получить результаты. Проверьте сеть."));
+    }
+    publish();
+  }
+
+  function handleOrion(tab, url) {
+    let parsed;
+    try { parsed = new URL(url); } catch { return; }
+    if (parsed.pathname.startsWith("/search")) {
+      const query = parsed.searchParams.get("q") || "";
+      if (!query) showHome(tab);
+      else runSearch(tab, query);
+      return;
+    }
+    if (parsed.pathname === "/bookmarks") return showLibrary(tab, "bookmarks");
+    if (parsed.pathname === "/history") return showLibrary(tab, "history");
+    if (parsed.pathname === "/downloads") return showLibrary(tab, "downloads");
+    if (parsed.pathname === "/settings") return showLibrary(tab, "settings");
+    if (parsed.pathname === "/clear-history") {
+      const data = loadLibrary();
+      data.history = [];
+      saveLibrary(data);
+      showLibrary(tab, "history");
+      return;
+    }
+    if (parsed.pathname === "/clear-bookmarks") {
+      const data = loadLibrary();
+      data.bookmarks = [];
+      saveLibrary(data);
+      showLibrary(tab, "bookmarks");
+      return;
+    }
+    if (parsed.pathname === "/intro-done") {
+      markIntro();
+      showHome(tab);
+      return;
+    }
+    if (parsed.pathname === "/make-default") {
+      markIntro();
+      openDefaultApps();
+      showHome(tab);
+      return;
+    }
+    showHome(tab);
+  }
+
+  function showIntro(tab) {
+    tab.title = "Glove Browser";
+    showHtml(tab, introHtml());
+    publish();
+  }
+
+  function showLibrary(tab, kind) {
+    const data = loadLibrary();
+    tab.title = { bookmarks: "Закладки", history: "История", downloads: "Загрузки", settings: "Настройки" }[kind];
+    showHtml(tab, listHtml(kind, data[kind] || []));
+    publish();
+  }
+
+  function attach(tab) {
+    const contents = tab.view.webContents;
+    contents.setWindowOpenHandler(({ url }) => {
+      createTab(url);
+      return { action: "deny" };
+    });
+    contents.on("will-navigate", (event, url) => {
+      if (url.startsWith("https://orion.glove")) {
+        event.preventDefault();
+        handleOrion(tab, url);
+      }
+    });
+    contents.on("page-title-updated", (_event, title) => {
+      if (title && !contents.getURL().startsWith("data:")) tab.title = title;
+      publish();
+    });
+    contents.on("did-navigate", (_event, url) => {
+      if (!incognito && /^https?:/i.test(url)) addHistory(contents.getTitle(), url);
+      publish();
+    });
+    contents.on("did-navigate-in-page", publish);
+    contents.on("did-start-loading", publish);
+    contents.on("did-stop-loading", publish);
+    contents.on("page-favicon-updated", publish);
+  }
+
+  function createTab(url) {
+    const view = new BrowserView({
+      webPreferences: {
+        session: browserSession,
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true
+      }
+    });
+    const tab = { id: tabSeq++, title: "Новая вкладка", view };
+    state.tabs.forEach((item) => win.removeBrowserView(item.view));
+    state.tabs.push(tab);
+    state.activeId = tab.id;
+    win.addBrowserView(view);
+    attach(tab);
+    if (!url && !incognito && state.tabs.length === 1 && !introDone()) showIntro(tab);
+    else if (!url) showHome(tab);
+    else openAddress(tab, url);
+    publish();
+    return tab;
+  }
+
+  function selectTab(id) {
+    const tab = state.tabs.find((item) => item.id === id);
+    if (!tab) return;
+    state.tabs.forEach((item) => win.removeBrowserView(item.view));
+    state.activeId = id;
+    win.addBrowserView(tab.view);
+    publish();
+  }
+
+  function closeTab(id) {
+    const at = state.tabs.findIndex((item) => item.id === id);
+    if (at < 0) return;
+    const [tab] = state.tabs.splice(at, 1);
+    const pageUrl = tab.view.webContents.isDestroyed() ? "" : tab.view.webContents.getURL();
+    if (!incognito && /^https?:/i.test(pageUrl)) {
+      state.closed.unshift(pageUrl);
+      state.closed = state.closed.slice(0, 8);
+    }
+    win.removeBrowserView(tab.view);
+    if (!tab.view.webContents.isDestroyed()) tab.view.webContents.destroy();
+    if (!state.tabs.length) {
+      win.close();
+      return;
+    }
+    if (state.activeId === id) selectTab(state.tabs[Math.max(0, at - 1)].id);
+    else publish();
+  }
+
+  function popupMenu() {
+    const tab = activeTab();
+    const url = tab && !tab.view.webContents.isDestroyed() ? tab.view.webContents.getURL() : "";
+    const pageUrl = url.startsWith("http") ? url : "";
+    const bookmarked = pageUrl && loadLibrary().bookmarks.some((item) => item.url === pageUrl);
+    const menu = Menu.buildFromTemplate([
+      { label: "Новая вкладка", accelerator: "CmdOrCtrl+T", click: () => createTab() },
+      { label: "Новое окно", click: () => createWindow(false) },
+      { label: "Новое окно инкогнито", accelerator: "CmdOrCtrl+Shift+N", click: () => createWindow(true) },
+      { type: "separator" },
+      { label: "Закладки", click: () => tab && showLibrary(tab, "bookmarks") },
+      { label: "История", enabled: !incognito, click: () => tab && showLibrary(tab, "history") },
+      { label: "Загрузки", click: () => tab && showLibrary(tab, "downloads") },
+      { type: "separator" },
+      { label: "Дублировать вкладку", enabled: !!pageUrl, click: () => createTab(pageUrl) },
+      { label: "Открыть закрытую вкладку", enabled: state.closed.length > 0, click: () => createTab(state.closed.shift()) },
+      { label: bookmarked ? "Удалить закладку" : "Добавить в закладки", enabled: !!pageUrl, click: () => toggleBookmark(tab, pageUrl) },
+      { label: "Копировать ссылку", enabled: !!pageUrl, click: () => clipboard.writeText(pageUrl) },
+      { label: "Найти на странице", accelerator: "CmdOrCtrl+F", click: () => {
+        if (!win.isDestroyed()) {
+          win.webContents.executeJavaScript("window.dispatchEvent(new Event('glove-find'))");
+        }
+      } },
+      { label: "Масштаб +", accelerator: "CmdOrCtrl+numadd", click: () => zoom(0.1) },
+      { label: "Масштаб −", accelerator: "CmdOrCtrl+numsub", click: () => zoom(-0.1) },
+      { type: "separator" },
+      { label: "Настройки", click: () => tab && showLibrary(tab, "settings") },
+      { label: "О программе", click: () => dialog.showMessageBox(win, { message: "Glove Browser 1.3.0", detail: "Поиск Orion" }) }
+    ]);
+    menu.popup({ window: win });
+  }
+
+  function toggleBookmark(tab, url) {
+    const data = loadLibrary();
+    const exists = data.bookmarks.findIndex((item) => item.url === url);
+    if (exists >= 0) data.bookmarks.splice(exists, 1);
+    else data.bookmarks.unshift({ title: tab.title || url, url, time: Date.now() });
+    saveLibrary(data);
+  }
+
+  function zoom(delta) {
+    const tab = activeTab();
+    if (!tab) return;
+    const next = Math.min(3, Math.max(0.3, tab.view.webContents.getZoomFactor() + delta));
+    tab.view.webContents.setZoomFactor(next);
+  }
+
+  const api = { createTab, selectTab, closeTab, openAddress, showHome, popupMenu, activeTab, publish, layout, state };
+
+  win.on("resize", layout);
+  win.on("closed", () => {
+    windows.delete(state);
+  });
+
+  ipcMain.on("ui-ready", (event) => {
+    if (event.sender !== win.webContents || state.ready) return;
+    state.ready = true;
+    createTab();
+  });
+  ipcMain.on("navigate", (event, text) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab) openAddress(tab, text);
+  });
+  ipcMain.on("back", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab && tab.view.webContents.canGoBack()) tab.view.webContents.goBack();
+  });
+  ipcMain.on("forward", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab && tab.view.webContents.canGoForward()) tab.view.webContents.goForward();
+  });
+  ipcMain.on("reload", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (!tab) return;
+    const url = tab.view.webContents.getURL();
+    if (url.startsWith("data:")) showHome(tab);
+    else tab.view.webContents.reload();
+  });
+  ipcMain.on("stop", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab) tab.view.webContents.stop();
+  });
+  ipcMain.on("home", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab) showHome(tab);
+  });
+  ipcMain.on("new-tab", (event) => {
+    if (event.sender !== win.webContents) return;
+    createTab();
+  });
+  ipcMain.on("close-tab", (event, id) => {
+    if (event.sender !== win.webContents) return;
+    closeTab(id);
+  });
+  ipcMain.on("select-tab", (event, id) => {
+    if (event.sender !== win.webContents) return;
+    selectTab(id);
+  });
+  ipcMain.on("menu", (event) => {
+    if (event.sender !== win.webContents) return;
+    popupMenu();
+  });
+  ipcMain.on("find", (event, text, again) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab && text) tab.view.webContents.findInPage(text, { findNext: !!again });
+  });
+  ipcMain.on("stop-find", (event) => {
+    if (event.sender !== win.webContents) return;
+    const tab = activeTab();
+    if (tab) tab.view.webContents.stopFindInPage("clearSelection");
+  });
+  ipcMain.on("chrome-height", (event, height) => {
+    if (event.sender !== win.webContents) return;
+    state.chromeHeight = Number(height) || 88;
+    layout();
+  });
+  ipcMain.on("window", (event, action) => {
+    if (event.sender !== win.webContents) return;
+    if (action === "minimize") win.minimize();
+    else if (action === "maximize") win.isMaximized() ? win.unmaximize() : win.maximize();
+    else if (action === "close") win.close();
+  });
+
+  state.api = api;
+  win.loadFile(path.join(__dirname, "index.html"), { query: { incognito: incognito ? "1" : "0" } });
+  return state;
+}
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const first = [...windows][0];
+    if (first) {
+      if (first.win.isMinimized()) first.win.restore();
+      first.win.focus();
+    }
+  });
+  app.whenReady().then(() => {
+    createWindow(false);
+  });
+}
+
+app.on("window-all-closed", () => app.quit());
