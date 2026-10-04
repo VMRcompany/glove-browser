@@ -28,6 +28,11 @@
     p { line-height: 1.5; }
     footer { border-top: 1px solid var(--line); padding: 24px 32px 40px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
     footer img { width: 28px; height: 28px; border-radius: 7px; }
+    footer a { color: var(--muted); }
+    .cookie { position: fixed; left: 16px; right: 16px; bottom: 16px; display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 8px 24px rgba(32,33,36,.12); }
+    .cookie[hidden] { display: none; }
+    .cookie p { margin: 0; }
+    .cookie button { height: 36px; border: 0; border-radius: 18px; padding: 0 16px; background: var(--green); color: #fff; font-weight: 600; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -35,13 +40,15 @@
     <div class="brand"><img src="logo.png" width="36" height="36" alt="">Glove Browser</div>
     <nav>
       <a href="#about">О браузере</a>
+      <a href="https://glove-dop.mineholde.pro/">Дополнения</a>
+      <a href="privacy.html">Конфиденциальность</a>
       <a href="#download">Скачать</a>
     </nav>
   </header>
   <div class="hero">
     <img src="logo.png" width="96" height="96" alt="Glove Browser">
     <h1>Glove Browser</h1>
-    <p class="lead">Свой браузер со вкладками, закладками и историей. По умолчанию ищет в Яндексе, рядом со строкой можно выбрать другую поисковую систему.</p>
+    <p class="lead">Браузер с вкладками, закладками и историей. Поиск открывается в Яндексе, рядом можно выбрать другую систему. Пока вы печатаете запрос, появляются подсказки.</p>
     <div class="actions" id="download">
       <a class="btn primary" href="downloads/GloveBrowser.apk"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.6 9.48 19.44 6.3c.16-.31.04-.69-.26-.85a.637.637 0 0 0-.83.22l-1.88 3.24a11.46 11.46 0 0 0-8.94 0L5.65 5.67a.643.643 0 0 0-.84-.22.637.637 0 0 0-.26.85l1.85 3.18C4.1 11.03 2.5 13.7 2.5 16.7h19c0-3-1.6-5.67-3.9-7.22zM7 14.5c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm10 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zM3.5 18.2h17v1.3c0 .55-.45 1-1 1h-15c-.55 0-1-.45-1-1v-1.3z"/></svg>Скачать для Android</a>
       <a class="btn ghost" href="downloads/GloveBrowser-Setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 5.2 10.6 4.1v7.2H3V5.2zm8.3-1.2L21 2.7v8.6h-9.7V4zm-8.3 8.3h7.6v7.3L3 18.4v-6.1zm8.3 0H21v8.7l-9.7-1.4v-7.3z"/></svg>Скачать для Windows</a>
@@ -51,32 +58,24 @@
     <h2>Что внутри</h2>
     <div class="grid">
       <article>
-        <h3>Вкладки</h3>
-        <p>Несколько страниц рядом, превью на телефоне и полоса вкладок на компьютере. Есть режим инкогнито.</p>
-      </article>
-      <article>
         <h3>Поиск</h3>
-        <p>По умолчанию открывается Яндекс. Рядом со строкой можно выбрать другую поисковую систему, в конце поля — лупа. Внизу стартовой страницы — лента новостей.</p>
+        <p>Яндекс открывается по умолчанию. Рядом со строкой выбирается другая система, в конце поля — лупа и фотоаппарат. Подсказки появляются во время ввода. Снимок или картинка из галереи ищутся в обычном браузере телефона или компьютера.</p>
       </article>
       <article>
-        <h3>Библиотека</h3>
-        <p>Закладки, история, загрузки, поиск по странице и очистка данных.</p>
+        <h3>Вкладки и библиотека</h3>
+        <p>Вкладки, режим инкогнито, закладки, история, загрузки и поиск по открытой странице.</p>
       </article>
       <article>
-        <h3>Версия для ПК</h3>
-        <p>На телефоне этот пункт открывает широкую вёрстку сайта.</p>
-      </article>
-      <article>
-        <h3>Ярлыки</h3>
-        <p>Долгое нажатие на значок на Android открывает новую вкладку, вкладку инкогнито, сведения о приложении и виджет поиска.</p>
-      </article>
-      <article>
-        <h3>Тема</h3>
-        <p>Оформление повторяет тёмную или светлую тему телефона. В настройках тёмную тему можно включить принудительно.</p>
+        <h3>Ярлыки и тема</h3>
+        <p>Долгое нажатие на значок Android открывает новую вкладку, инкогнито, сведения о приложении и виджет. Оформление повторяет тему телефона, а в настройках тёмную тему можно включить отдельно.</p>
       </article>
       <article>
         <h3>Дополнения</h3>
-        <p>В версии для Windows дополнения ставятся из папки или файла .crx. Сборка для Android показывает страницы системным просмотрщиком, без установки дополнений.</p>
+        <p>Бесплатные дополнения для Glove, Chrome, Яндекса и Edge собраны на <a href="https://glove-dop.mineholde.pro/">отдельной странице</a>. В Windows-версии Glove дополнение с VPN подключает само соединение браузера.</p>
+      </article>
+      <article>
+        <h3>Обновления</h3>
+        <p>Новая сборка сразу появляется на этой странице. Если установленная версия старше, под строкой адреса появляется розовая плашка. Крестик скрывает её до следующего запуска.</p>
       </article>
     </div>
   </section>
@@ -84,6 +83,17 @@
     <h2>Системы</h2>
     <p>Минимальная версия Android — 8.0. Установщик Windows рассчитан на 64-битные Windows 7, 8, 10 и 11.</p>
   </section>
-  <footer><img src="logo.png" alt="">Glove Browser · glove.mineholde.pro</footer>
+  <footer><img src="logo.png" alt="">Glove Browser · <a href="privacy.html">Политика конфиденциальности</a></footer>
+  <div id="cookie" class="cookie" hidden>
+    <p>Сайт запоминает, что вы закрыли это сообщение. Подробности — в <a href="privacy.html">политике конфиденциальности</a>.</p>
+    <button id="cookieOk" type="button">Понятно</button>
+  </div>
+  <script>
+    if (!localStorage.getItem("glove-cookie")) document.getElementById("cookie").hidden = false;
+    document.getElementById("cookieOk").onclick = function () {
+      localStorage.setItem("glove-cookie", "1");
+      document.getElementById("cookie").hidden = true;
+    };
+  </script>
 </body>
 </html>

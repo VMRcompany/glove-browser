@@ -8,7 +8,8 @@ const params = new URLSearchParams(location.search);
 if (params.get("incognito") === "1") document.body.classList.add("incognito");
 
 function chromeHeight() {
-  const height = 88 + (findbar.hidden ? 0 : 40);
+  const update = document.getElementById("updateBar");
+  const height = 88 + (findbar.hidden ? 0 : 40) + (update.hidden ? 0 : 36);
   window.glove.chromeHeight(height);
 }
 
@@ -84,9 +85,52 @@ document.getElementById("min").onclick = () => window.glove.window("minimize");
 document.getElementById("max").onclick = () => window.glove.window("maximize");
 document.getElementById("close").onclick = () => window.glove.window("close");
 
+const suggestBox = document.getElementById("suggest");
+let suggestTimer;
+address.addEventListener("input", () => {
+  clearTimeout(suggestTimer);
+  const q = address.value.trim();
+  if (!q) {
+    suggestBox.hidden = true;
+    suggestBox.innerHTML = "";
+    return;
+  }
+  suggestTimer = setTimeout(() => window.glove.suggest(q), 160);
+});
+window.glove.onSuggest((list) => {
+  suggestBox.innerHTML = "";
+  (list || []).forEach((item) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = item;
+    button.addEventListener("click", () => {
+      address.value = item;
+      suggestBox.hidden = true;
+      window.glove.navigate(item);
+    });
+    suggestBox.append(button);
+  });
+  suggestBox.hidden = !list || !list.length;
+});
+document.getElementById("camera").onclick = (event) => {
+  event.preventDefault();
+  window.glove.imageSearch();
+};
+const updateBar = document.getElementById("updateBar");
+document.getElementById("updateClose").onclick = () => {
+  updateBar.hidden = true;
+  chromeHeight();
+  window.glove.dismissUpdate();
+};
+window.glove.onUpdate((state) => {
+  updateBar.hidden = !(state && state.show);
+  chromeHeight();
+});
+
 document.getElementById("omnibox").addEventListener("submit", (event) => {
   event.preventDefault();
   window.glove.navigate(address.value);
+  suggestBox.hidden = true;
   address.blur();
 });
 

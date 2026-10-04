@@ -196,7 +196,61 @@ function injectKey(dir, key) {
 }
 
 async function loadOne(dir) {
-  return gloveSession().loadExtension(dir, { allowFileAccess: true });
+  const manifest = readManifest(dir);
+  const loaded = await gloveSession().loadExtension(dir, { allowFileAccess: true });
+  const permissions = [].concat(manifest.permissions || [], manifest.optional_permissions || []);
+  if (permissions.includes("proxy")) {
+    loaded.proxy = true;
+  }
+  return loaded;
+}
+
+function postText(url, body) {
+  return new Promise((resolve, reject) => {
+    const target = new URL(url);
+    const request = https.request({
+      hostname: target.hostname,
+      path: target.pathname + target.search,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Length": Buffer.byteLength(body),
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36"
+      }
+    }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        downloadToBuffer(new URL(response.headers.location, url).href).then((buf) => resolve(buf.toString("utf8")), reject);
+        return;
+      }
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      response.on("error", reject);
+    });
+    request.on("error", reject);
+    request.write(body);
+    request.end();
+  });
+}
+
+async function searchStore(query) {
+  const q = String(query || "").trim();
+  if (!q) return [];
+  const items = [];
+  const seen = new Set();
+  try {
+    const html = (await downloadToBuffer("https://chromewebstore.google.com/search/" + encodeURIComponent(q) + "?hl=ru")).toString("utf8");
+    const linkRe = /\/detail\/([^"'/]+)\/([a-p]{32})/g;
+    let match;
+    while ((match = linkRe.exec(html)) && items.length < 24) {
+      if (seen.has(match[2])) continue;
+      seen.add(match[2]);
+      const name = decodeURIComponent(match[1]).replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+      items.push({ id: match[2], name });
+    }
+  } catch { /* the page stays usable without results */ }
+  return items;
 }
 
 function remember(loaded, dest, manifest) {
@@ -467,5 +521,43 @@ module.exports = {
   installFromStore,
   storeExtensionId,
   isCrxDownload,
-  installDownloaded
+  installDownloaded,
+  searchStore,
+  searchImage
 };
+
+function searchImage(file) {
+  return new Promise((resolve) => {
+    const boundary = "----GloveBoundary" + Date.now();
+    const bytes = fs.readFileSync(file);
+    const head = Buffer.from("--" + boundary + "\r\nContent-Disposition: form-data; name=\"upfile\"; filename=\"photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n");
+    const tail = Buffer.from("\r\n--" + boundary + "--\r\n");
+    const body = Buffer.concat([head, bytes, tail]);
+    const request = https.request({
+      hostname: "yandex.ru",
+      path: "/images/search?rpt=imageview&format=json",
+      method: "POST",
+      headers: {
+        "Content-Type": "multipart/form-data; boundary=" + boundary,
+        "Content-Length": body.length,
+        "User-Agent": "Mozilla/5.0"
+      }
+    }, (response) => {
+      const location = response.headers.location;
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        if (location) {
+          resolve(location.startsWith("http") ? location : "https://yandex.ru" + location);
+          return;
+        }
+        const text = Buffer.concat(chunks).toString("utf8");
+        const found = text.match(/https:\\?\/\\?\/yandex\.ru\\?\/images\\?\/search\?[^"\s\\]+/) || text.match(/https:\/\/yandex\.ru\/images\/search\?[^"\s]+/);
+        resolve(found ? found[0].replace(/\\\//g, "/").replace(/\\u0026/g, "&") : "https://yandex.ru/images/");
+      });
+    });
+    request.on("error", () => resolve("https://yandex.ru/images/"));
+    request.write(body);
+    request.end();
+  });
+}

@@ -83,6 +83,9 @@ class MainActivity : AppCompatActivity() {
     private var customView: View? = null
     private var customCallback: WebChromeClient.CustomViewCallback? = null
     private var suggestionItems = emptyList<LinkItem>()
+    private var suggestGen = 0
+    private var updateDismissed = false
+    private var lensUri: Uri? = null
     private val tabAdapter = TabAdapter()
 
     private val roleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
@@ -104,6 +107,19 @@ class MainActivity : AppCompatActivity() {
         }
         cb?.onReceiveValue(uris)
         cameraUri = null
+    }
+
+    private val takeLens = registerForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = lensUri
+        if (ok && uri != null) searchByImage(uri)
+    }
+
+    private val pickLens = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) searchByImage(uri)
+    }
+
+    private val askCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchLensCamera() else Toast.makeText(this, "Нужен доступ к камере", Toast.LENGTH_SHORT).show()
     }
 
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
@@ -137,7 +153,15 @@ class MainActivity : AppCompatActivity() {
         binding.menu.setOnClickListener { showMenu() }
         binding.security.setOnClickListener { onSecurityClick() }
         binding.engine.setOnClickListener { showEnginePicker() }
+        binding.camera.setOnClickListener { showImageSearch() }
         binding.action.setOnClickListener { onActionClick() }
+        binding.updateClose.setOnClickListener {
+            updateDismissed = true
+            binding.updateBar.visibility = View.GONE
+            (binding.suggestions.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin =
+                (57 * resources.displayMetrics.density).toInt()
+        }
+        checkUpdate()
         binding.switcherBack.setOnClickListener { closeSwitcher() }
         binding.switcherMode.setOnClickListener {
             switcherIncognito = !switcherIncognito
@@ -430,6 +454,7 @@ class MainActivity : AppCompatActivity() {
                             paintEngine()
                             showHome(tab)
                         }
+                        "/image" -> showImageSearch()
                         "/search" -> {
                             val q = uri.getQueryParameter("q").orEmpty()
                             if (q.isBlank()) showHome(tab) else runSearch(tab, q)
@@ -595,6 +620,7 @@ class MainActivity : AppCompatActivity() {
         binding.address.setHintTextColor(hint)
         binding.security.setColorFilter(icon)
         binding.action.setColorFilter(icon)
+        binding.camera.setColorFilter(icon)
         val bg = GradientDrawable().apply {
             cornerRadius = 20f * resources.displayMetrics.density
             setColor(if (dark) Color.parseColor("#303134") else Color.parseColor("#F1F3F4"))
@@ -972,13 +998,121 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    private fun showImageSearch() {
+        AlertDialog.Builder(this)
+            .setItems(arrayOf(getString(R.string.take_photo), getString(R.string.pick_gallery))) { _, which ->
+                if (which == 0) {
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                        launchLensCamera()
+                    } else {
+                        askCamera.launch(Manifest.permission.CAMERA)
+                    }
+                } else {
+                    pickLens.launch("image/*")
+                }
+            }
+            .show()
+    }
+
+    private fun launchLensCamera() {
+        val file = File(cacheDir, "lens-${System.currentTimeMillis()}.jpg")
+        if (!file.exists()) file.createNewFile()
+        val uri = FileProvider.getUriForFile(this, "$packageName.files", file)
+        lensUri = uri
+        takeLens.launch(uri)
+    }
+
+    private fun searchByImage(uri: Uri) {
+        thread {
+            val file = File(cacheDir, "lens-send.jpg")
+            try {
+                contentResolver.openInputStream(uri)?.use { input ->
+                    file.outputStream().use { input.copyTo(it) }
+                }
+            } catch (_: Exception) {
+                return@thread
+            }
+            val page = ImageSearch.resultUrl(file)
+            runOnUiThread {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(page)))
+                } catch (_: Exception) {
+                    Toast.makeText(this, "Не удалось открыть поиск", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun checkUpdate() {
+        thread {
+            val remote = listOf(
+                "https://glove.mineholde.pro/version.json",
+                "https://raw.githubusercontent.com/VMRcompany/glove-browser/main/docs/version.json"
+            ).firstNotNullOfOrNull { address ->
+                try {
+                    val conn = (java.net.URL(address).openConnection() as java.net.HttpURLConnection).apply {
+                        instanceFollowRedirects = true
+                        connectTimeout = 6000
+                        readTimeout = 6000
+                        setRequestProperty("User-Agent", "GloveBrowser/1.7")
+                    }
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    JSONObject(body).optString("version").ifBlank { null }
+                } catch (_: Exception) {
+                    null
+                }
+            } ?: return@thread
+            val local = packageManager.getPackageInfo(packageName, 0).versionName ?: return@thread
+            if (!newerVersion(remote, local)) return@thread
+            runOnUiThread {
+                if (updateDismissed) return@runOnUiThread
+                binding.updateBar.visibility = View.VISIBLE
+                (binding.suggestions.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin =
+                    (100 * resources.displayMetrics.density).toInt()
+            }
+        }
+    }
+
+    private fun newerVersion(remote: String, local: String): Boolean {
+        val left = remote.split(".").map { it.toIntOrNull() ?: 0 }
+        val right = local.split(".").map { it.toIntOrNull() ?: 0 }
+        val count = maxOf(left.size, right.size)
+        for (i in 0 until count) {
+            val diff = (left.getOrElse(i) { 0 }) - (right.getOrElse(i) { 0 })
+            if (diff != 0) return diff > 0
+        }
+        return false
+    }
+
     private fun showSuggestions(query: String) {
         val q = query.trim()
         val recent = (store.history() + store.bookmarks()).distinctBy { it.url }
         val matched = recent.filter {
             q.isEmpty() || it.title.contains(q, true) || it.url.contains(q, true)
-        }.take(8)
+        }.take(6)
+        val generation = ++suggestGen
         suggestionItems = if (q.isEmpty()) matched else listOf(LinkItem("Искать: $q", q, 0)) + matched
+        paintSuggestions()
+        if (q.isEmpty()) return
+        thread {
+            val hints = try {
+                Suggest.yandex(q)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            runOnUiThread {
+                if (generation != suggestGen || binding.address.text.toString().trim() != q) return@runOnUiThread
+                val remote = hints.map { LinkItem(it, it, 0) }
+                suggestionItems = listOf(LinkItem("Искать: $q", q, 0)) + remote + matched.filter { item ->
+                    remote.none { it.title.equals(item.title, true) }
+                }
+                suggestionItems = suggestionItems.distinctBy { it.title.lowercase() }.take(8)
+                paintSuggestions()
+            }
+        }
+    }
+
+    private fun paintSuggestions() {
         binding.suggestions.adapter = object : android.widget.BaseAdapter() {
             override fun getCount() = suggestionItems.size
             override fun getItem(position: Int) = suggestionItems[position]

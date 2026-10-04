@@ -153,10 +153,18 @@ object Orion {
               width: 46px; height: 46px; flex: none; border-radius: 23px; border: 1px solid #dfe1e5;
               background: #fff; display: flex; align-items: center; justify-content: center; padding: 0;
             }
-            .searchline .lens {
-              position: absolute; right: 6px; top: 5px; width: 36px; height: 36px; padding: 0;
+            .searchline .lens, .searchline .cam {
+              position: absolute; top: 5px; width: 36px; height: 36px; padding: 0;
               background: transparent; display: flex; align-items: center; justify-content: center;
             }
+            .searchline .lens { right: 6px; }
+            .searchline .cam { right: 40px; }
+            .searchline input { padding-right: 82px; }
+            .suggest { width: min(640px, 100%); margin-top: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 16px; overflow: hidden; }
+            .suggest:empty { display: none; }
+            .suggest a { display: block; padding: 10px 16px; text-decoration: none; color: #202124; }
+            html.night .suggest { background: #303134; border-color: #3c4043; }
+            html.night .suggest a { color: #e8eaed; }
             .engine img, .choice img { width: 22px; height: 22px; }
             .picker {
               display: none; width: min(640px, 100%); margin-top: 10px; max-height: 280px; overflow: auto;
