@@ -1027,6 +1027,29 @@ function createWindow(incognito) {
   return state;
 }
 
+ipcMain.handle("weather-load", async (event, lat, lon) => {
+  const fromPage = [...windows].some((item) => (item.tabs || []).some((tab) => tab.view.webContents === event.sender));
+  if (!fromPage) {
+    return { label: "Яндекс Погода", place: "Открыть прогноз", condition: "cloud", href: "https://yandex.ru/pogoda/" };
+  }
+  const latitude = typeof lat === "number" ? lat : Number(lat);
+  const longitude = typeof lon === "number" ? lon : Number(lon);
+  const hasCoords = Number.isFinite(latitude) && Number.isFinite(longitude);
+  try {
+    return await weather.fetchWeather(hasCoords ? latitude : null, hasCoords ? longitude : null);
+  } catch {
+    return {
+      temp: null,
+      label: "Яндекс Погода",
+      place: "Открыть прогноз",
+      condition: "cloud",
+      href: hasCoords
+        ? "https://yandex.ru/pogoda/?lat=" + latitude + "&lon=" + longitude
+        : "https://yandex.ru/pogoda/"
+    };
+  }
+});
+
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();

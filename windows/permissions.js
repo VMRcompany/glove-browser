@@ -87,13 +87,15 @@ function wire(browserSession, userData) {
       .includes(permission);
   });
   browserSession.setPermissionRequestHandler(async (contents, permission, callback, details) => {
-    const origin = originOf((details && (details.requestingUrl || details.securityOrigin)) || contents.getURL());
+    const rawUrl = (details && (details.requestingUrl || details.securityOrigin)) || contents.getURL();
+    const origin = originOf(rawUrl) || (String(rawUrl || "").startsWith("data:") ? "glove://home" : "");
     const win = BrowserWindow.fromWebContents(contents) || BrowserWindow.getFocusedWindow();
     if (!win) {
       callback(false);
       return;
     }
-    callback(await decide(win, userData, origin, permission));
+    // NTP is a data: page; still ask once under a stable home key so weather geolocation works.
+    callback(await decide(win, userData, origin || "glove://home", permission));
   });
   browserSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     const sources = await desktopCapturer.getSources({ types: ["screen", "window"], thumbnailSize: { width: 0, height: 0 } });

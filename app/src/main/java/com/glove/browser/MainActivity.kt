@@ -428,6 +428,7 @@ class MainActivity : AppCompatActivity() {
             tabs.find { it.webView === source }?.atTop = atTop
         }, "GloveScroll")
         if (!incognito) view.addJavascriptInterface(VaultBridge(), "GloveVault")
+        view.addJavascriptInterface(WeatherBridge(view), "GloveWeather")
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
         view.setDownloadListener { url, userAgent, contentDisposition, mime, _ ->
             download(url, userAgent, contentDisposition, mime)
@@ -1052,6 +1053,26 @@ class MainActivity : AppCompatActivity() {
             }
             .setOnCancelListener { done(false) }
             .show()
+    }
+
+    private inner class WeatherBridge(private val view: WebView) {
+        @JavascriptInterface
+        fun load(lat: String, lon: String) {
+            val latitude = lat.toDoubleOrNull()
+            val longitude = lon.toDoubleOrNull()
+            Weather.loadAsync(latitude, longitude) { json ->
+                runOnUiThread {
+                    if (!tabs.any { it.webView === view } || !view.isAttachedToWindow) return@runOnUiThread
+                    try {
+                        view.evaluateJavascript(
+                            "typeof gloveWeatherApply==='function'&&gloveWeatherApply($json)",
+                            null
+                        )
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
     }
 
     private inner class VaultBridge {
