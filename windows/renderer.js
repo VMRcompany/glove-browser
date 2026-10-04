@@ -112,6 +112,25 @@ window.glove.onSuggest((list) => {
   });
   suggestBox.hidden = !list || !list.length;
 });
+function openVoice() {
+  const panel = document.getElementById("voice");
+  document.getElementById("voiceText").textContent = "Слушаю…";
+  panel.hidden = false;
+  window.glove.voiceStart();
+}
+document.getElementById("mic").onclick = (event) => {
+  event.preventDefault();
+  openVoice();
+};
+document.getElementById("voiceStop").onclick = () => {
+  window.glove.voiceStop();
+  document.getElementById("voice").hidden = true;
+};
+window.glove.onVoice((text) => {
+  document.getElementById("voiceText").textContent = text;
+  address.value = text;
+});
+window.glove.onVoiceOpen(openVoice);
 document.getElementById("camera").onclick = (event) => {
   event.preventDefault();
   window.glove.imageSearch();
@@ -172,6 +191,66 @@ window.addEventListener("glove-find", () => {
   chromeHeight();
   findQuery.focus();
   findQuery.select();
+});
+
+const extPanel = document.getElementById("extPanel");
+async function showExtensions() {
+  const items = await window.glove.extensions();
+  extPanel.innerHTML = "";
+  const head = document.createElement("div");
+  head.className = "ext-head";
+  head.textContent = "Расширения";
+  extPanel.append(head);
+  if (!items.length) {
+    const empty = document.createElement("p");
+    empty.className = "ext-note";
+    empty.textContent = "Дополнений пока нет. Их можно найти в маркете.";
+    extPanel.append(empty);
+  }
+  items.forEach((item) => {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "ext-row";
+    if (item.icon) {
+      const img = document.createElement("img");
+      img.src = item.icon;
+      img.alt = "";
+      row.append(img);
+    }
+    const text = document.createElement("span");
+    const name = document.createElement("b");
+    name.textContent = item.name;
+    const hosts = document.createElement("small");
+    hosts.textContent = item.hosts || "";
+    text.append(name, hosts);
+    const more = document.createElement("span");
+    more.className = "ext-more";
+    more.textContent = "···";
+    more.title = "Удалить";
+    more.addEventListener("click", (event) => {
+      event.stopPropagation();
+      window.glove.removeExtension(item.id);
+    });
+    row.append(text, more);
+    row.addEventListener("click", () => {
+      window.glove.openExtension(item.id);
+      extPanel.hidden = true;
+    });
+    extPanel.append(row);
+  });
+  extPanel.hidden = false;
+}
+document.getElementById("extensions").onclick = () => {
+  if (extPanel.hidden) showExtensions();
+  else extPanel.hidden = true;
+};
+window.glove.onExtensions(() => {
+  if (!extPanel.hidden) showExtensions();
+});
+document.addEventListener("click", (event) => {
+  if (extPanel.hidden) return;
+  if (event.target.closest("#extPanel") || event.target.closest("#extensions")) return;
+  extPanel.hidden = true;
 });
 
 window.glove.ready();

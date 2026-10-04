@@ -40,6 +40,7 @@
     <string name="search_engine">Поисковая система</string>
     <string name="find_web">Найти</string>
     <string name="image_search">Поиск по изображению</string>
+    <string name="voice">Голосовой ввод</string>
     <string name="take_photo">Сфотографировать</string>
     <string name="pick_gallery">Выбрать из галереи</string>
     <string name="update_ready">Вышло новое обновление</string>

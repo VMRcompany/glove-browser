@@ -122,6 +122,10 @@ class MainActivity : AppCompatActivity() {
         if (granted) launchLensCamera() else Toast.makeText(this, "Нужен доступ к камере", Toast.LENGTH_SHORT).show()
     }
 
+    private val askMic = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) openVoice() else Toast.makeText(this, "Нужен доступ к микрофону", Toast.LENGTH_SHORT).show()
+    }
+
     private val askPermissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         val geo = geoCallback
         val origin = geoOrigin
@@ -153,6 +157,7 @@ class MainActivity : AppCompatActivity() {
         binding.menu.setOnClickListener { showMenu() }
         binding.security.setOnClickListener { onSecurityClick() }
         binding.engine.setOnClickListener { showEnginePicker() }
+        binding.mic.setOnClickListener { startVoice() }
         binding.camera.setOnClickListener { showImageSearch() }
         binding.action.setOnClickListener { onActionClick() }
         binding.updateClose.setOnClickListener {
@@ -422,6 +427,7 @@ class MainActivity : AppCompatActivity() {
         view.addJavascriptInterface(ScrollTopBridge(view) { source, atTop ->
             tabs.find { it.webView === source }?.atTop = atTop
         }, "GloveScroll")
+        if (!incognito) view.addJavascriptInterface(VaultBridge(), "GloveVault")
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
         view.setDownloadListener { url, userAgent, contentDisposition, mime, _ ->
             download(url, userAgent, contentDisposition, mime)
@@ -455,6 +461,7 @@ class MainActivity : AppCompatActivity() {
                             showHome(tab)
                         }
                         "/image" -> showImageSearch()
+                        "/voice" -> startVoice()
                         "/search" -> {
                             val q = uri.getQueryParameter("q").orEmpty()
                             if (q.isBlank()) showHome(tab) else runSearch(tab, q)
@@ -493,6 +500,7 @@ class MainActivity : AppCompatActivity() {
                 if (desktop) runDesktopScript(v)
                 if (tab.home) publishNews(tab)
                 v.evaluateJavascript(SCROLL_WATCH, null)
+                if (!tab.incognito && url.startsWith("http")) v.evaluateJavascript(Vault.PAGE, null)
                 if (tabs.getOrNull(index)?.webView === v) {
                     binding.swipe.isRefreshing = false
                     paintLocation(tab)
@@ -549,28 +557,48 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
-                val fine = ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION)
-                if (fine == PackageManager.PERMISSION_GRANTED) callback.invoke(origin, true, false) else {
-                    geoOrigin = origin
-                    geoCallback = callback
-                    askPermissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                decideSite(origin, "location") { allow ->
+                    if (!allow) {
+                        callback.invoke(origin, false, false)
+                        return@decideSite
+                    }
+                    val fine = ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION)
+                    if (fine == PackageManager.PERMISSION_GRANTED) callback.invoke(origin, true, false) else {
+                        geoOrigin = origin
+                        geoCallback = callback
+                        askPermissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
                 }
             }
 
             override fun onPermissionRequest(request: PermissionRequest) {
-                val needed = request.resources.mapNotNull {
+                val kind = request.resources.joinToString("+") {
                     when (it) {
-                        PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
-                        PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
-                        else -> null
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE -> "camera"
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE -> "microphone"
+                        PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID -> "media"
+                        else -> "screen"
                     }
-                }.distinct()
-                val missing = needed.filter {
-                    ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
-                }
-                if (missing.isEmpty()) request.grant(request.resources) else {
-                    permissionRequest = request
-                    askPermissions.launch(missing.toTypedArray())
+                }.ifBlank { "screen" }
+                decideSite(request.origin.toString(), kind) { allow ->
+                    if (!allow) {
+                        request.deny()
+                        return@decideSite
+                    }
+                    val needed = request.resources.mapNotNull {
+                        when (it) {
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
+                            else -> null
+                        }
+                    }.distinct()
+                    val missing = needed.filter {
+                        ContextCompat.checkSelfPermission(this@MainActivity, it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missing.isEmpty()) request.grant(request.resources) else {
+                        permissionRequest = request
+                        askPermissions.launch(missing.toTypedArray())
+                    }
                 }
             }
 
@@ -621,6 +649,7 @@ class MainActivity : AppCompatActivity() {
         binding.security.setColorFilter(icon)
         binding.action.setColorFilter(icon)
         binding.camera.setColorFilter(icon)
+        binding.mic.setColorFilter(icon)
         val bg = GradientDrawable().apply {
             cornerRadius = 20f * resources.displayMetrics.density
             setColor(if (dark) Color.parseColor("#303134") else Color.parseColor("#F1F3F4"))
@@ -685,14 +714,7 @@ class MainActivity : AppCompatActivity() {
     private fun paintEngine() {
         val engine = SearchEngines.get(store.searchEngine)
         binding.engine.contentDescription = engine.name
-        SearchEngines.cachedIcon(engine.domain)?.let { binding.engine.setImageBitmap(it) }
-            ?: SearchEngines.loadIcon(engine.domain) { bitmap ->
-                runOnUiThread {
-                    if (SearchEngines.get(store.searchEngine).domain == engine.domain) {
-                        binding.engine.setImageBitmap(bitmap)
-                    }
-                }
-            }
+        binding.engine.setImageBitmap(SearchEngines.iconBitmap(engine.id))
     }
 
     private fun showEnginePicker() {
@@ -710,10 +732,7 @@ class MainActivity : AppCompatActivity() {
                 val row = convertView ?: layoutInflater.inflate(R.layout.item_engine, parent, false)
                 val engine = engines[position]
                 row.findViewById<TextView>(R.id.title).text = engine.name
-                val icon = row.findViewById<ImageView>(R.id.favicon)
-                val cached = SearchEngines.cachedIcon(engine.domain)
-                if (cached != null) icon.setImageBitmap(cached)
-                else SearchEngines.loadIcon(engine.domain) { bitmap -> icon.post { icon.setImageBitmap(bitmap) } }
+                row.findViewById<ImageView>(R.id.favicon).setImageBitmap(SearchEngines.iconBitmap(engine.id))
                 row.setBackgroundColor(
                     if (engine.id == store.searchEngine) {
                         if (nightOn()) Color.parseColor("#3C4043") else Color.parseColor("#E8F0FE")
@@ -996,6 +1015,71 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    private fun startVoice() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            openVoice()
+        } else {
+            askMic.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun openVoice() {
+        Voice.listen(this) { text ->
+            binding.address.setText(text)
+            binding.address.setSelection(text.length)
+        }
+    }
+
+    private fun decideSite(origin: String, kind: String, done: (Boolean) -> Unit) {
+        SiteAccess.get(this, origin, kind)?.let {
+            done(it)
+            return
+        }
+        val host = Uri.parse(origin).host ?: origin
+        val what = kind.split("+").joinToString(", ") { SiteAccess.label(it) }
+        AlertDialog.Builder(this)
+            .setTitle("Glove")
+            .setMessage("$host запрашивает $what")
+            .setPositiveButton("Разрешить") { _, _ ->
+                SiteAccess.put(this, origin, kind, true)
+                done(true)
+            }
+            .setNegativeButton("Запретить") { _, _ ->
+                SiteAccess.put(this, origin, kind, false)
+                done(false)
+            }
+            .setOnCancelListener { done(false) }
+            .show()
+    }
+
+    private inner class VaultBridge {
+        @JavascriptInterface
+        fun offer(origin: String, username: String, password: String) {
+            if (origin.isBlank() || password.isBlank() || Vault.blocked(this@MainActivity, origin)) return
+            if (Vault.find(this@MainActivity, origin).any { it.username == username && it.password == password }) return
+            runOnUiThread {
+                val host = Uri.parse(origin).host ?: origin
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Сохранить пароль?")
+                    .setMessage(if (username.isBlank()) host else "$host\n$username")
+                    .setPositiveButton("Сохранить") { _, _ -> Vault.save(this@MainActivity, origin, username, password) }
+                    .setNeutralButton("Никогда") { _, _ -> Vault.never(this@MainActivity, origin) }
+                    .setNegativeButton("Не сейчас", null)
+                    .show()
+            }
+        }
+
+        @JavascriptInterface
+        fun lookup(origin: String): String {
+            if (Vault.blocked(this@MainActivity, origin)) return "[]"
+            val array = org.json.JSONArray()
+            Vault.find(this@MainActivity, origin).forEach { entry ->
+                array.put(JSONObject().put("username", entry.username).put("password", entry.password))
+            }
+            return array.toString()
+        }
     }
 
     private fun showImageSearch() {

@@ -1,4 +1,4 @@
-const { app, session, dialog } = require("electron");
+const { app, session, dialog, BrowserWindow } = require("electron");
 const { execFileSync } = require("child_process");
 const fs = require("fs");
 const https = require("https");
@@ -234,23 +234,131 @@ function postText(url, body) {
   });
 }
 
+function parseStoreHtml(html, limit) {
+  const items = [];
+  const seen = new Set();
+  const linkRe = /\/detail\/([^"'/]+)\/([a-p]{32})/g;
+  let match;
+  while ((match = linkRe.exec(html)) && items.length < limit) {
+    if (seen.has(match[2])) continue;
+    seen.add(match[2]);
+    const around = html.slice(Math.max(0, match.index - 1200), match.index + 500);
+    const img = around.match(/https:\/\/lh3\.googleusercontent\.com\/[^"'\\\s<>]+/);
+    const titled = around.match(/"title"\s*:\s*"((?:\\.|[^"\\])*)"/);
+    let name = titled
+      ? titled[1].replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))).replace(/\\"/g, '"')
+      : decodeURIComponent(match[1]).replace(/-/g, " ");
+    items.push({ id: match[2], name, icon: img ? img[0].replace(/\\u0026/g, "&") : "" });
+  }
+  return items;
+}
+
+async function enrichItem(item) {
+  if (item.icon && item.name && !/^[A-Z][a-z]+(\s[A-Z][a-z]+)+$/.test(item.name) && item.name.length > 2) return item;
+  try {
+    const html = (await downloadToBuffer("https://chromewebstore.google.com/detail/" + item.id + "?hl=ru")).toString("utf8");
+    const og = html.match(/property="og:image"\s+content="([^"]+)"/) || html.match(/https:\/\/lh3\.googleusercontent\.com\/[^"'\\\s<>]+/);
+    const title = html.match(/<title>([^<]+)/);
+    const name = title ? title[1].replace(/\s+[-–—].*$/, "").trim() : item.name;
+    return { id: item.id, name: name || item.name, icon: item.icon || (og ? (og[1] || og[0]) : "") };
+  } catch {
+    return item;
+  }
+}
+
 async function searchStore(query) {
   const q = String(query || "").trim();
   if (!q) return [];
-  const items = [];
-  const seen = new Set();
   try {
     const html = (await downloadToBuffer("https://chromewebstore.google.com/search/" + encodeURIComponent(q) + "?hl=ru")).toString("utf8");
-    const linkRe = /\/detail\/([^"'/]+)\/([a-p]{32})/g;
-    let match;
-    while ((match = linkRe.exec(html)) && items.length < 24) {
-      if (seen.has(match[2])) continue;
-      seen.add(match[2]);
-      const name = decodeURIComponent(match[1]).replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-      items.push({ id: match[2], name });
+    const items = parseStoreHtml(html, 24);
+    const batch = [];
+    for (let i = 0; i < items.length; i += 6) batch.push(items.slice(i, i + 6));
+    const ready = [];
+    for (const group of batch) ready.push(...await Promise.all(group.map(enrichItem)));
+    return ready;
+  } catch {
+    return [];
+  }
+}
+
+function iconData(file) {
+  const ext = path.extname(file).toLowerCase();
+  const mime = { ".svg": "image/svg+xml", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" }[ext] || "image/png";
+  return "data:" + mime + ";base64," + fs.readFileSync(file).toString("base64");
+}
+
+function iconFile(dir, manifest) {
+  const sources = [];
+  const pushIcon = (icon) => {
+    if (!icon) return;
+    if (typeof icon === "string") sources.push(icon);
+    else if (typeof icon === "object") {
+      const size = Object.keys(icon).map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => b - a)[0];
+      if (size) sources.push(icon[String(size)] || icon[size]);
     }
-  } catch { /* the page stays usable without results */ }
-  return items;
+  };
+  pushIcon(manifest.icons);
+  pushIcon((manifest.action || {}).default_icon);
+  pushIcon((manifest.browser_action || {}).default_icon);
+  for (const rel of sources) {
+    const file = path.resolve(dir, String(rel).replace(/^\//, ""));
+    if (file.startsWith(path.resolve(dir)) && fs.existsSync(file)) return file;
+  }
+  return "";
+}
+
+function popupPath(manifest) {
+  const action = manifest.action || manifest.browser_action || {};
+  return action.default_popup ? String(action.default_popup).replace(/^\//, "") : "";
+}
+
+function hostLabel(manifest) {
+  const perms = [].concat(manifest.host_permissions || [], manifest.permissions || []);
+  if (perms.some((item) => item === "<all_urls>" || item === "*://*/*")) return "Разрешено на всех сайтах";
+  const host = perms.find((item) => typeof item === "string" && item.includes("://"));
+  return host ? "Сайты: " + host : "Работает в браузере";
+}
+
+function shelf() {
+  return loadStore().filter((item) => item.enabled && item.path).map((item) => {
+    let icon = "";
+    let popup = "";
+    let hosts = "Работает в браузере";
+    try {
+      const manifest = readManifest(item.path);
+      const file = iconFile(item.path, manifest);
+      if (file) icon = iconData(file);
+      popup = popupPath(manifest);
+      hosts = hostLabel(manifest);
+    } catch { /* keep the row usable */ }
+    return { id: item.id, extensionId: item.extensionId, name: item.name, icon, popup, hosts };
+  });
+}
+
+function openPopup(parent, id) {
+  const row = loadStore().find((item) => item.id === id);
+  if (!row || !row.extensionId) return;
+  const manifest = readManifest(row.path);
+  const popup = popupPath(manifest);
+  if (!popup) {
+    dialog.showMessageBox(parent, { message: row.name, detail: "У этого дополнения нет своего окна. Оно работает прямо на страницах." });
+    return;
+  }
+  const popupWin = new BrowserWindow({
+    parent: parent || undefined,
+    width: 400,
+    height: 560,
+    title: row.name,
+    autoHideMenuBar: true,
+    webPreferences: {
+      session: gloveSession(),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true
+    }
+  });
+  popupWin.loadURL("chrome-extension://" + row.extensionId + "/" + popup);
 }
 
 function remember(loaded, dest, manifest) {
@@ -347,6 +455,11 @@ async function setEnabled(item, enabled) {
     found.enabled = false;
   }
   saveStore(list);
+}
+
+function removeById(id) {
+  const item = loadStore().find((row) => row.id === id);
+  if (item) removeStored(item);
 }
 
 function removeStored(item) {
@@ -523,7 +636,11 @@ module.exports = {
   isCrxDownload,
   installDownloaded,
   searchStore,
-  searchImage
+  searchImage,
+  shelf,
+  openPopup,
+  removeStored,
+  removeById
 };
 
 function searchImage(file) {

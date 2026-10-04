@@ -64,6 +64,14 @@
                     android:textSize="15sp" />
 
                 <ImageButton
+                    android:id="@+id/mic"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="@android:color/transparent"
+                    android:contentDescription="@string/voice"
+                    android:src="@drawable/ic_mic" />
+
+                <ImageButton
                     android:id="@+id/camera"
                     android:layout_width="36dp"
                     android:layout_height="36dp"

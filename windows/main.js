@@ -1,6 +1,10 @@
 const { app, BrowserWindow, BrowserView, Menu, clipboard, dialog, shell, ipcMain, session, nativeTheme } = require("electron");
 const extensions = require("./extensions");
-const APP_VERSION = "1.7.0";
+const engines = require("./engines");
+const vault = require("./vault");
+const voice = require("./voice");
+const permissions = require("./permissions");
+const APP_VERSION = "1.8.0";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -58,8 +62,8 @@ const ENGINES = [
   ["presearch", "Presearch", "presearch.com", "https://presearch.com/search?q={q}"]
 ].map(([id, name, domain, template]) => ({ id, name, domain, template }));
 
-function iconUrl(domain) {
-  return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=64";
+function iconUrl(id) {
+  return engines.icon(id);
 }
 
 function engineFile() {
@@ -84,7 +88,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.7.0";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.0";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -166,15 +170,16 @@ function page(title, body) {
     }
     .searchline { display: flex; align-items: center; gap: 8px; width: min(640px, 100%); }
     .searchline form { position: relative; flex: 1; width: auto; margin: 0; }
-    .searchline input { padding: 0 82px 0 18px; }
+    .searchline input { padding: 0 116px 0 18px; }
     .suggest { width: min(640px, 100%); margin-top: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 16px; overflow: hidden; }
     .suggest:empty { display: none; }
     .suggest a { display: block; padding: 10px 16px; color: #202124; text-decoration: none; }
     .searchline .engine, .searchline .lens { margin: 0; border: 0; cursor: pointer; }
     .searchline .engine { width: 46px; height: 46px; border-radius: 23px; border: 1px solid #dfe1e5; background: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
-    .searchline .lens, .searchline .cam { position: absolute; top: 5px; width: 36px; height: 36px; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
+    .searchline .lens, .searchline .cam, .searchline .mic { position: absolute; top: 5px; width: 36px; height: 36px; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
     .searchline .lens { right: 6px; }
     .searchline .cam { right: 40px; }
+    .searchline .mic { right: 74px; }
     .suggest { width: min(640px, 100%); margin-top: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 16px; overflow: hidden; }
     .suggest:empty { display: none; }
     .suggest a { display: block; padding: 10px 16px; color: #202124; text-decoration: none; }
@@ -189,8 +194,8 @@ function page(title, body) {
 
 function marketHtml(query, items) {
   const cards = (items || []).map((item) => `<article class="hit">
+    ${item.icon ? `<img src="${escapeHtml(item.icon)}" alt="" width="48" height="48" style="border-radius:12px">` : ""}
     <strong>${escapeHtml(item.name)}</strong>
-    <span>${escapeHtml(item.id)}</span>
     <p>
       <a href="glove://install?id=${escapeHtml(item.id)}">Glove</a>
       <a href="https://chromewebstore.google.com/detail/${escapeHtml(item.id)}">Chrome</a>
@@ -267,15 +272,16 @@ function homeHtml(shortcuts) {
   ).join("");
   const choices = ENGINES.map((item) => {
     const selected = item.id === engine.id ? " selected" : "";
-    return `<a class="choice${selected}" href="https://orion.glove/engine?id=${item.id}"><img src="${iconUrl(item.domain)}" alt=""><span>${escapeHtml(item.name)}</span></a>`;
+    return `<a class="choice${selected}" href="https://orion.glove/engine?id=${item.id}"><img src="${iconUrl(item.id)}" alt=""><span>${escapeHtml(item.name)}</span></a>`;
   }).join("");
   return page("Glove Browser", `<main class="ntp"><div class="hero" style="display:flex;flex-direction:column;align-items:center">
     <img class="mark" src="${logoData}" alt="">
     <div class="logo">Glove</div>
     <div class="searchline">
-      <button class="engine" type="button" title="${escapeHtml(engine.name)}" onclick="document.getElementById('picker').classList.toggle('open')"><img src="${iconUrl(engine.domain)}" alt=""></button>
+      <button class="engine" type="button" title="${escapeHtml(engine.name)}" onclick="document.getElementById('picker').classList.toggle('open')"><img src="${iconUrl(engine.id)}" alt=""></button>
       <form action="https://orion.glove/search" method="get">
         <input name="q" placeholder="Введите запрос или адрес" autofocus>
+        <a class="mic" href="https://orion.glove/voice" title="Голосовой ввод" aria-label="Голосовой ввод"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#5f6368" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a1 1 0 0 0-2 0 3 3 0 0 1-6 0 1 1 0 0 0-2 0 5 5 0 0 0 4 4.9V18H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.1A5 5 0 0 0 17 11z"/></svg></a>
         <a class="cam" href="https://orion.glove/image" title="Поиск по изображению" aria-label="Поиск по изображению"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="#5f6368" d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg></a>
         <button class="lens" type="submit" title="Найти" aria-label="Найти"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="#5f6368" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
       </form>
@@ -479,6 +485,7 @@ function createWindow(incognito) {
     covered: false
   };
   windows.add(state);
+  if (!incognito) permissions.wire(browserSession, app.getPath("userData"));
 
   browserSession.on("will-download", (_event, item) => {
     const file = path.join(app.getPath("downloads"), item.getFilename());
@@ -522,7 +529,7 @@ function createWindow(incognito) {
       home,
       display: home ? "" : url,
       engineId: currentEngine().id,
-      engines: ENGINES.map((item) => ({ id: item.id, name: item.name, icon: iconUrl(item.domain) })),
+      engines: ENGINES.map((item) => ({ id: item.id, name: item.name, icon: iconUrl(item.id) })),
       picker: !!state.covered
     });
     if (!state.covered) layout();
@@ -563,6 +570,10 @@ function createWindow(incognito) {
   function handleOrion(tab, url) {
     let parsed;
     try { parsed = new URL(url); } catch { return; }
+    if (parsed.pathname === "/voice") {
+      win.webContents.send("voice-open");
+      return;
+    }
     if (parsed.pathname === "/image") {
       dialog.showOpenDialog(win, {
         title: "Изображение",
@@ -668,6 +679,10 @@ function createWindow(incognito) {
     });
     contents.on("did-navigate-in-page", publish);
     contents.on("did-start-loading", publish);
+    contents.on("did-finish-load", () => {
+      const url = contents.getURL();
+      if (!incognito && /^https?:/i.test(url)) contents.executeJavaScript(vault.PAGE).catch(() => {});
+    });
     contents.on("did-stop-loading", publish);
     contents.on("page-favicon-updated", publish);
   }
@@ -676,6 +691,7 @@ function createWindow(incognito) {
     const view = new BrowserView({
       webPreferences: {
         session: browserSession,
+        preload: path.join(__dirname, "page-preload.js"),
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true
@@ -722,6 +738,38 @@ function createWindow(incognito) {
     else publish();
   }
 
+  function showPasswords() {
+    const rows = vault.listPublic();
+    if (!rows.length) {
+      dialog.showMessageBox(win, { message: "Пароли", detail: "Сохранённых паролей пока нет." });
+      return;
+    }
+    const buttons = rows.map((item) => item.origin.replace(/^https?:\/\//, "") + (item.username ? " · " + item.username : "")).concat(["Закрыть"]);
+    dialog.showMessageBox(win, {
+      type: "none",
+      buttons,
+      cancelId: buttons.length - 1,
+      noLink: true,
+      message: "Сохранённые пароли"
+    }).then(async (choice) => {
+      const item = rows[choice.response];
+      if (!item) return;
+      const next = await dialog.showMessageBox(win, {
+        type: "none",
+        buttons: ["Показать", "Удалить", "Назад"],
+        cancelId: 2,
+        noLink: true,
+        message: item.origin,
+        detail: item.username || "Без имени"
+      });
+      if (next.response === 0) {
+        dialog.showMessageBox(win, { message: item.origin, detail: vault.reveal(item.origin, item.username) });
+      } else if (next.response === 1) {
+        vault.forget(item.origin, item.username);
+      }
+    });
+  }
+
   function popupMenu() {
     const tab = activeTab();
     const url = tab && !tab.view.webContents.isDestroyed() ? tab.view.webContents.getURL() : "";
@@ -735,6 +783,7 @@ function createWindow(incognito) {
       { label: "Закладки", click: () => tab && showLibrary(tab, "bookmarks") },
       { label: "История", enabled: !incognito, click: () => tab && showLibrary(tab, "history") },
       { label: "Загрузки", click: () => tab && showLibrary(tab, "downloads") },
+      { label: "Пароли", enabled: !incognito, click: () => showPasswords() },
       { type: "separator" },
       { label: "Дублировать вкладку", enabled: !!pageUrl, click: () => createTab(pageUrl) },
       { label: "Открыть закрытую вкладку", enabled: state.closed.length > 0, click: () => createTab(state.closed.shift()) },
@@ -819,6 +868,55 @@ function createWindow(incognito) {
     if (event.sender !== win.webContents) return;
     const tab = activeTab();
     if (tab) handleOrion(tab, "https://orion.glove/image");
+  });
+  ipcMain.on("voice-start", (event) => {
+    if (event.sender !== win.webContents) return;
+    let spoken = "";
+    voice.start((text) => {
+      spoken = spoken ? spoken.replace(/[.!?…]$/, "") + " " + text : text;
+      if (!event.sender.isDestroyed()) event.sender.send("voice-text", spoken);
+    });
+  });
+  ipcMain.on("voice-stop", (event) => {
+    if (event.sender !== win.webContents) return;
+    voice.stop();
+  });
+  ipcMain.on("vault-offer", (event, origin, username, password) => {
+    const fromPage = state.tabs.some((tab) => tab.view.webContents === event.sender);
+    if (!fromPage || incognito || !origin || !password || vault.blocked(origin)) return;
+    if (vault.find(origin).some((item) => item.username === username && item.password === password)) return;
+    const host = String(origin).replace(/^https?:\/\//, "");
+    dialog.showMessageBox(win, {
+      type: "question",
+      buttons: ["Сохранить", "Не сейчас", "Никогда"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+      message: "Сохранить пароль?",
+      detail: host + (username ? "\n" + username : "")
+    }).then((result) => {
+      if (result.response === 0) vault.save(origin, username, password);
+      if (result.response === 2) vault.never(origin);
+    });
+  });
+  ipcMain.on("vault-fill", (event, origin) => {
+    const fromPage = state.tabs.some((tab) => tab.view.webContents === event.sender);
+    event.returnValue = fromPage && !incognito && !vault.blocked(origin) ? vault.find(origin) : [];
+  });
+  ipcMain.handle("extensions-list", (event) => {
+    if (event.sender !== win.webContents) return [];
+    return extensions.shelf();
+  });
+  ipcMain.on("extension-open", (event, id) => {
+    if (event.sender !== win.webContents) return;
+    try { extensions.openPopup(win, id); } catch (error) {
+      dialog.showMessageBox(win, { type: "error", message: "Не удалось открыть дополнение", detail: String(error.message || error) });
+    }
+  });
+  ipcMain.on("extension-remove", (event, id) => {
+    if (event.sender !== win.webContents) return;
+    extensions.removeById(id);
+    event.sender.send("extensions-changed");
   });
   ipcMain.on("update-dismiss", (event) => {
     if (event.sender !== win.webContents) return;

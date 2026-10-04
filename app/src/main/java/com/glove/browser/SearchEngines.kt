@@ -1,11 +1,12 @@
 package com.glove.browser
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import java.net.HttpURLConnection
-import java.net.URL
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.Typeface
 import java.net.URLEncoder
-import kotlin.concurrent.thread
 
 object SearchEngines {
     data class Engine(val id: String, val name: String, val domain: String, val template: String)
@@ -44,37 +45,77 @@ object SearchEngines {
         return get(id).template.replace("{q}", encoded)
     }
 
-    fun iconUrl(domain: String) = "https://www.google.com/s2/favicons?domain=$domain&sz=64"
+    private val marks = mapOf(
+        "yandex" to ("#FC3F1D" to "Я"),
+        "google" to ("#4285F4" to "G"),
+        "bing" to ("#008373" to "B"),
+        "duckduckgo" to ("#DE5833" to "D"),
+        "yahoo" to ("#6001D2" to "Y"),
+        "mail" to ("#005FF9" to "M"),
+        "rambler" to ("#315EFB" to "R"),
+        "brave" to ("#FB542B" to "B"),
+        "ecosia" to ("#008009" to "E"),
+        "startpage" to ("#6573FF" to "S"),
+        "qwant" to ("#5C97FF" to "Q"),
+        "wikipedia" to ("#202124" to "W"),
+        "baidu" to ("#2932E1" to "B"),
+        "naver" to ("#03C75A" to "N"),
+        "seznam" to ("#CC0000" to "S"),
+        "ask" to ("#D32011" to "A"),
+        "aol" to ("#202124" to "A"),
+        "kagi" to ("#1A1A1A" to "K"),
+        "you" to ("#202124" to "Y"),
+        "mojeek" to ("#1A4F8B" to "M"),
+        "swisscows" to ("#E30613" to "S"),
+        "dogpile" to ("#E85D04" to "D"),
+        "metager" to ("#2E7D32" to "M"),
+        "presearch" to ("#1A56DB" to "P")
+    )
 
     private val icons = mutableMapOf<String, Bitmap>()
 
-    fun cachedIcon(domain: String) = icons[domain]
+    fun iconData(id: String): String {
+        val (color, letter) = marks[id] ?: ("#234230" to "?")
+        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="16" fill="$color"/><text x="32" y="43" text-anchor="middle" font-size="32" font-family="sans-serif" fill="#fff">$letter</text></svg>"""
+        return "data:image/svg+xml;charset=utf-8," + URLEncoder.encode(svg, "UTF-8").replace("+", "%20")
+    }
 
-    fun loadIcon(domain: String, onReady: (Bitmap) -> Unit) {
-        icons[domain]?.let {
-            onReady(it)
-            return
-        }
-        thread(name = "engine-icon") {
-            val bitmap = fetchIcon(domain) ?: return@thread
-            synchronized(icons) { icons[domain] = bitmap }
-            onReady(bitmap)
-        }
+    fun iconBitmap(id: String): Bitmap {
+        icons[id]?.let { return it }
+        val (color, letter) = marks[id] ?: ("#234230" to "?")
+        val size = 128
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.color = Color.parseColor(color)
+        canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), 28f, 28f, paint)
+        paint.color = Color.WHITE
+        paint.textAlign = Paint.Align.CENTER
+        paint.textSize = 68f
+        paint.typeface = Typeface.DEFAULT_BOLD
+        val bounds = Rect()
+        paint.getTextBounds(letter, 0, letter.length, bounds)
+        canvas.drawText(letter, size / 2f, size / 2f - bounds.exactCenterY(), paint)
+        icons[id] = bitmap
+        return bitmap
     }
 
     fun boxHtml(currentId: String): String {
         val current = get(currentId)
         val choices = all.joinToString("") { engine ->
             val selected = if (engine.id == current.id) " selected" else ""
-            """<a class="choice$selected" href="https://orion.glove/engine?id=${engine.id}"><img src="${iconUrl(engine.domain)}" alt=""><span>${escape(engine.name)}</span></a>"""
+            """<a class="choice$selected" href="https://orion.glove/engine?id=${engine.id}"><img src="${iconData(engine.id)}" alt=""><span>${escape(engine.name)}</span></a>"""
         }
         return """
             <div class="searchline">
               <button class="engine" type="button" title="${escape(current.name)}" onclick="document.getElementById('picker').classList.toggle('open')">
-                <img src="${iconUrl(current.domain)}" alt="">
+                <img src="${iconData(current.id)}" alt="">
               </button>
               <form action="https://orion.glove/search" method="get">
                 <input name="q" placeholder="Введите запрос или адрес" autofocus>
+                <a class="mic" href="https://orion.glove/voice" title="Голосовой ввод" aria-label="Голосовой ввод">
+                  <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#5f6368" d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a1 1 0 0 0-2 0 3 3 0 0 1-6 0 1 1 0 0 0-2 0 5 5 0 0 0 4 4.9V18H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.1A5 5 0 0 0 17 11z"/></svg>
+                </a>
                 <a class="cam" href="https://orion.glove/image" title="Поиск по изображению" aria-label="Поиск по изображению">
                   <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#5f6368" d="M9 3 7.17 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.17L15 3H9zm3 15a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg>
                 </a>
@@ -115,18 +156,6 @@ object SearchEngines {
               })();
             </script>
         """.trimIndent()
-    }
-
-    private fun fetchIcon(domain: String): Bitmap? = try {
-        val conn = (URL(iconUrl(domain)).openConnection() as HttpURLConnection).apply {
-            instanceFollowRedirects = true
-            connectTimeout = 8000
-            readTimeout = 8000
-            setRequestProperty("User-Agent", "GloveBrowser/1.4")
-        }
-        conn.inputStream.use { BitmapFactory.decodeStream(it) }
-    } catch (_: Exception) {
-        null
     }
 
     private fun escape(value: String) =

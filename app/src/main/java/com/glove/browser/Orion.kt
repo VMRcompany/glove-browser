@@ -153,13 +153,14 @@ object Orion {
               width: 46px; height: 46px; flex: none; border-radius: 23px; border: 1px solid #dfe1e5;
               background: #fff; display: flex; align-items: center; justify-content: center; padding: 0;
             }
-            .searchline .lens, .searchline .cam {
+            .searchline .lens, .searchline .cam, .searchline .mic {
               position: absolute; top: 5px; width: 36px; height: 36px; padding: 0;
               background: transparent; display: flex; align-items: center; justify-content: center;
             }
             .searchline .lens { right: 6px; }
             .searchline .cam { right: 40px; }
-            .searchline input { padding-right: 82px; }
+            .searchline .mic { right: 74px; }
+            .searchline input { padding-right: 116px; }
             .suggest { width: min(640px, 100%); margin-top: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 16px; overflow: hidden; }
             .suggest:empty { display: none; }
             .suggest a { display: block; padding: 10px 16px; text-decoration: none; color: #202124; }

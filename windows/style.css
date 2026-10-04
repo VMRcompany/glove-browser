@@ -276,6 +276,48 @@ body.incognito #omnibox:focus-within { background: #202124; }
 
 #enginePicker[hidden] { display: none; }
 
+#voice, #extPanel {
+  position: absolute;
+  top: 96px;
+  right: 16px;
+  z-index: 5;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(32, 33, 36, 0.18);
+}
+#voice { width: 320px; padding: 16px; }
+#voice[hidden], #extPanel[hidden] { display: none; }
+#voice strong { display: block; font-size: 18px; margin-bottom: 8px; }
+#voice p { margin: 0 0 12px; min-height: 40px; }
+#voice button, .ext-more {
+  border: 0;
+  background: #234230;
+  color: #fff;
+  border-radius: 16px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+#extPanel { width: 360px; max-height: 420px; overflow: auto; padding: 8px 0; }
+.ext-head { padding: 10px 16px; font-weight: 600; }
+.ext-note { margin: 0; padding: 8px 16px 14px; color: var(--muted); }
+.ext-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 10px 16px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.ext-row img { width: 28px; height: 28px; border-radius: 6px; }
+.ext-row span { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.ext-row small { color: var(--muted); }
+.ext-more { background: transparent; color: var(--muted); padding: 0 6px; }
+
 .choice {
   display: flex;
   align-items: center;

@@ -38,6 +38,16 @@
         android:text="Тёмная тема" />
 
     <TextView
+        android:id="@+id/passwords"
+        style="@style/SettingsRow"
+        android:text="Пароли" />
+
+    <TextView
+        android:id="@+id/permissions"
+        style="@style/SettingsRow"
+        android:text="Разрешения сайтов" />
+
+    <TextView
         android:id="@+id/clearHistory"
         style="@style/SettingsRow"
         android:text="Очистить историю" />
