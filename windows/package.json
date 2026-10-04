@@ -1,7 +1,7 @@
 {
   "name": "glove-browser",
   "productName": "Glove Browser",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Glove Browser",
   "author": "Glove Browser",
   "main": "main.js",
@@ -27,6 +27,7 @@
       "engines.js",
       "vault.js",
       "voice.js",
+      "weather.js",
       "permissions.js",
       "index.html",
       "renderer.js",

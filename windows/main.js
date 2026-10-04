@@ -4,7 +4,8 @@ const engines = require("./engines");
 const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
-const APP_VERSION = "1.8.0";
+const weather = require("./weather");
+const APP_VERSION = "1.8.1";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -88,7 +89,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.0";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.1";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -141,7 +142,8 @@ function page(title, body) {
   <style>
     body { margin: 0; font-family: "Segoe UI", sans-serif; color: #202124; background: #fff; }
     .ntp { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; }
-    .logo { font-size: 48px; font-weight: 500; letter-spacing: -1px; margin: 8px 0 20px; }
+    .logo { font-size: 48px; font-weight: 500; letter-spacing: -1px; margin: 8px 0 14px; }
+    ${weather.css()}
     .mark { width: 88px; height: 88px; border-radius: 22px; }
     .news { width: min(640px, 100%); margin-top: auto; padding-top: 36px; }
     .news h2 { font-size: 16px; font-weight: 500; }
@@ -277,6 +279,7 @@ function homeHtml(shortcuts) {
   return page("Glove Browser", `<main class="ntp"><div class="hero" style="display:flex;flex-direction:column;align-items:center">
     <img class="mark" src="${logoData}" alt="">
     <div class="logo">Glove</div>
+    ${weather.html()}
     <div class="searchline">
       <button class="engine" type="button" title="${escapeHtml(engine.name)}" onclick="document.getElementById('picker').classList.toggle('open')"><img src="${iconUrl(engine.id)}" alt=""></button>
       <form action="https://orion.glove/search" method="get">
@@ -292,6 +295,7 @@ function homeHtml(shortcuts) {
     <section class="news"><h2>Новости</h2><div id="news"><p class="note">Собираем новости…</p></div></section></main>
     <script>function gloveNews(html){ var n=document.getElementById("news"); if(n) n.innerHTML=html; }
       (function(){ var input=document.querySelector(".searchline input"); var box=document.getElementById("suggest"); if(!input||!box) return; var timer; input.addEventListener("input", function(){ clearTimeout(timer); var q=input.value.trim(); if(!q){ box.innerHTML=""; return; } timer=setTimeout(function(){ fetch("https://suggest.yandex.ru/suggest-ff.cgi?part="+encodeURIComponent(q)+"&uil=ru&v=4&sn=5").then(function(r){return r.text();}).then(function(text){ var data=JSON.parse(text.slice(text.indexOf("["))); var list=data[1]||[]; box.innerHTML=list.slice(0,8).map(function(item){ var label=typeof item==="string"?item:item[0]; return '<a href="https://orion.glove/search?q='+encodeURIComponent(label)+'">'+String(label).replace(/[&<>]/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[ch];})+"</a>"; }).join(""); }).catch(function(){}); }, 160); }); })();
+      ${weather.script()}
     </script>`);
 }
 

@@ -20,6 +20,7 @@ object Orion {
                   <div class="hero">
                     $mark
                     <div class="logo">Glove</div>
+                    ${Weather.HTML}
                     ${SearchEngines.boxHtml(engineId)}
                     <div class="tiles">$tiles</div>
                   </div>
@@ -33,6 +34,7 @@ object Orion {
                     var node = document.getElementById("news");
                     if (node) node.innerHTML = html;
                   }
+                  ${Weather.SCRIPT}
                 </script>
             """.trimIndent(),
             dark = dark
@@ -137,7 +139,8 @@ object Orion {
             .ntp { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; }
             .hero { width: min(584px, 100%); display: flex; flex-direction: column; align-items: center; }
             .mark { width: 88px; height: 88px; border-radius: 22px; margin-bottom: 12px; }
-            .logo { font-size: 40px; font-weight: 500; letter-spacing: -1px; margin-bottom: 20px; }
+            .logo { font-size: 40px; font-weight: 500; letter-spacing: -1px; margin-bottom: 14px; }
+            ${Weather.CSS}
             form { width: min(584px, 100%); }
             input {
               width: 100%; height: 46px; border-radius: 24px; border: 1px solid #dfe1e5;
