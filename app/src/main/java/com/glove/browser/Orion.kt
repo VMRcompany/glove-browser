@@ -8,7 +8,7 @@ import java.net.URLEncoder
 object Orion {
     data class Hit(val title: String, val url: String, val snippet: String)
 
-    fun homeHtml(shortcuts: List<Pair<String, String>> = emptyList(), logo: String = ""): String {
+    fun homeHtml(shortcuts: List<Pair<String, String>> = emptyList(), logo: String = "", engineId: String = "yandex", dark: Boolean = false): String {
         val tiles = shortcuts.joinToString("") { (title, url) ->
             """<a class="tile" href="${escape(url)}"><b>${escape(title.take(1).uppercase())}</b><span>${escape(title)}</span></a>"""
         }
@@ -20,9 +20,7 @@ object Orion {
                   <div class="hero">
                     $mark
                     <div class="logo">Glove</div>
-                    <form action="https://orion.glove/search" method="get">
-                      <input name="q" placeholder="Введите запрос или адрес" autofocus />
-                    </form>
+                    ${SearchEngines.boxHtml(engineId)}
                     <div class="tiles">$tiles</div>
                   </div>
                   <section class="news">
@@ -37,6 +35,7 @@ object Orion {
                   }
                 </script>
             """.trimIndent(),
+            dark = dark
         )
     }
 
@@ -125,9 +124,9 @@ object Orion {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
 
-    private fun page(title: String, body: String): String = """
+    private fun page(title: String, body: String, dark: Boolean = false): String = """
         <!DOCTYPE html>
-        <html lang="ru">
+        <html lang="ru" class="${if (dark) "night" else ""}">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -146,6 +145,27 @@ object Orion {
               box-shadow: 0 1px 6px rgba(32,33,36,.12);
             }
             input:focus { box-shadow: 0 1px 6px rgba(32,33,36,.28); border-color: transparent; }
+            .searchline { display: flex; align-items: center; gap: 8px; width: min(640px, 100%); }
+            .searchline form { position: relative; flex: 1; width: auto; margin: 0; }
+            .searchline input { padding: 0 46px 0 18px; }
+            .searchline .engine, .searchline .lens { margin: 0; border: 0; cursor: pointer; }
+            .searchline .engine {
+              width: 46px; height: 46px; flex: none; border-radius: 23px; border: 1px solid #dfe1e5;
+              background: #fff; display: flex; align-items: center; justify-content: center; padding: 0;
+            }
+            .searchline .lens {
+              position: absolute; right: 6px; top: 5px; width: 36px; height: 36px; padding: 0;
+              background: transparent; display: flex; align-items: center; justify-content: center;
+            }
+            .engine img, .choice img { width: 22px; height: 22px; }
+            .picker {
+              display: none; width: min(640px, 100%); margin-top: 10px; max-height: 280px; overflow: auto;
+              background: #fff; border: 1px solid #dadce0; border-radius: 16px;
+              box-shadow: 0 8px 24px rgba(32,33,36,.16);
+            }
+            .picker.open { display: grid; grid-template-columns: 1fr 1fr; }
+            .choice { display: flex; align-items: center; gap: 8px; padding: 10px 12px; text-decoration: none; color: #202124; }
+            .choice.selected { background: #f1f3f4; }
             .tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 28px; max-width: 584px; }
             .tile { width: 92px; text-align: center; text-decoration: none; color: #202124; font-size: 12px; }
             .tile b {
@@ -165,6 +185,11 @@ object Orion {
             .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; }
             .story b { display: block; font-weight: 500; line-height: 1.35; }
             .story span { display: block; margin-top: 3px; color: #234230; font-size: 12px; }
+            html.night, html.night body { background: #202124; color: #e8eaed; }
+            html.night input, html.night .searchline .engine, html.night .picker { background: #303134; color: #e8eaed; border-color: #3c4043; }
+            html.night .choice, html.night .tile, html.night .story { color: #e8eaed; }
+            html.night .choice.selected, html.night .tile b { background: #3c4043; }
+            html.night .story { border-top-color: #3c4043; }
           </style>
         </head>
         <body>$body</body>

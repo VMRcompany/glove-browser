@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.GloveBrowser" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">#202124</item>
+        <item name="android:statusBarColor">@color/toolbar</item>
+        <item name="android:navigationBarColor">@color/toolbar</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">@color/toolbar</item>
+        <item name="android:textColor">@color/ink</item>
+    </style>
+</resources>

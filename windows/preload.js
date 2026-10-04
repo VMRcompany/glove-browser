@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("glove", {
   closeTab: (id) => ipcRenderer.send("close-tab", id),
   selectTab: (id) => ipcRenderer.send("select-tab", id),
   menu: () => ipcRenderer.send("menu"),
+  togglePicker: () => ipcRenderer.send("toggle-picker"),
+  chooseEngine: (id) => ipcRenderer.send("choose-engine", id),
   find: (text, again) => ipcRenderer.send("find", text, !!again),
   stopFind: () => ipcRenderer.send("stop-find"),
   chromeHeight: (height) => ipcRenderer.send("chrome-height", height),

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_about"
+        android:shortcutId="about"
+        android:shortcutLongLabel="@string/shortcut_about"
+        android:shortcutShortLabel="@string/shortcut_about">
+        <intent
+            android:action="com.glove.browser.action.ABOUT"
+            android:targetClass="com.glove.browser.MainActivity"
+            android:targetPackage="com.glove.browser" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_widgets"
+        android:shortcutId="widgets"
+        android:shortcutLongLabel="@string/shortcut_widgets"
+        android:shortcutShortLabel="@string/shortcut_widgets">
+        <intent
+            android:action="com.glove.browser.action.WIDGETS"
+            android:targetClass="com.glove.browser.MainActivity"
+            android:targetPackage="com.glove.browser" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new_tab"
+        android:shortcutId="new_tab"
+        android:shortcutLongLabel="@string/shortcut_new_tab"
+        android:shortcutShortLabel="@string/shortcut_new_tab">
+        <intent
+            android:action="com.glove.browser.action.NEW_TAB"
+            android:targetClass="com.glove.browser.MainActivity"
+            android:targetPackage="com.glove.browser" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_incognito"
+        android:shortcutId="incognito"
+        android:shortcutLongLabel="@string/shortcut_incognito"
+        android:shortcutShortLabel="@string/shortcut_incognito">
+        <intent
+            android:action="com.glove.browser.action.INCOGNITO"
+            android:targetClass="com.glove.browser.MainActivity"
+            android:targetPackage="com.glove.browser" />
+    </shortcut>
+</shortcuts>

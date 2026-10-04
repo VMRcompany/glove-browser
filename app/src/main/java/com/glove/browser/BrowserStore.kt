@@ -1,4 +1,4 @@
-package com.glove.browser
+﻿package com.glove.browser
 
 import android.content.Context
 import org.json.JSONArray
@@ -66,6 +66,14 @@ class BrowserStore(context: Context) {
     var introSeen: Boolean
         get() = prefs.getBoolean("intro", false)
         set(value) { prefs.edit().putBoolean("intro", value).apply() }
+
+    var searchEngine: String
+        get() = prefs.getString("engine", "yandex") ?: "yandex"
+        set(value) { prefs.edit().putString("engine", value).apply() }
+
+    var forceDark: Boolean
+        get() = prefs.getBoolean("forceDark", false)
+        set(value) { prefs.edit().putBoolean("forceDark", value).apply() }
 
     private fun read(key: String): MutableList<LinkItem> {
         val raw = prefs.getString(key, "[]") ?: "[]"

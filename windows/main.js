@@ -1,4 +1,28 @@
-const { app, BrowserWindow, BrowserView, Menu, clipboard, dialog, shell, ipcMain, session } = require("electron");
+const { app, BrowserWindow, BrowserView, Menu, clipboard, dialog, shell, ipcMain, session, nativeTheme } = require("electron");
+const extensions = require("./extensions");
+const APP_VERSION = "1.6.0";
+
+function themeFile() {
+  return path.join(app.getPath("userData"), "theme.json");
+}
+
+function themeMode() {
+  try {
+    const mode = JSON.parse(fs.readFileSync(themeFile(), "utf8")).mode;
+    return mode === "dark" ? "dark" : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function applyTheme(mode) {
+  const next = mode === "dark" ? "dark" : "system";
+  nativeTheme.themeSource = next;
+  try {
+    fs.mkdirSync(path.dirname(themeFile()), { recursive: true });
+    fs.writeFileSync(themeFile(), JSON.stringify({ mode: next }));
+  } catch { /* theme still applies for this run */ }
+}
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -6,6 +30,59 @@ const path = require("path");
 const https = require("https");
 
 const logoData = "data:image/png;base64," + fs.readFileSync(path.join(__dirname, "logo.png")).toString("base64");
+
+const ENGINES = [
+  ["yandex", "Яндекс", "yandex.ru", "https://yandex.ru/search/?text={q}"],
+  ["google", "Google", "google.com", "https://www.google.com/search?q={q}"],
+  ["bing", "Bing", "bing.com", "https://www.bing.com/search?q={q}"],
+  ["duckduckgo", "DuckDuckGo", "duckduckgo.com", "https://duckduckgo.com/?q={q}"],
+  ["yahoo", "Yahoo", "search.yahoo.com", "https://search.yahoo.com/search?p={q}"],
+  ["mail", "Mail.ru", "go.mail.ru", "https://go.mail.ru/search?q={q}"],
+  ["rambler", "Rambler", "rambler.ru", "https://nova.rambler.ru/search?query={q}"],
+  ["brave", "Brave", "search.brave.com", "https://search.brave.com/search?q={q}"],
+  ["ecosia", "Ecosia", "ecosia.org", "https://www.ecosia.org/search?q={q}"],
+  ["startpage", "Startpage", "startpage.com", "https://www.startpage.com/sp/search?query={q}"],
+  ["qwant", "Qwant", "qwant.com", "https://www.qwant.com/?q={q}"],
+  ["wikipedia", "Википедия", "ru.wikipedia.org", "https://ru.wikipedia.org/w/index.php?search={q}"],
+  ["baidu", "Baidu", "baidu.com", "https://www.baidu.com/s?wd={q}"],
+  ["naver", "Naver", "search.naver.com", "https://search.naver.com/search.naver?query={q}"],
+  ["seznam", "Seznam", "search.seznam.cz", "https://search.seznam.cz/?q={q}"],
+  ["ask", "Ask", "ask.com", "https://www.ask.com/web?q={q}"],
+  ["aol", "AOL", "search.aol.com", "https://search.aol.com/aol/search?q={q}"],
+  ["kagi", "Kagi", "kagi.com", "https://kagi.com/search?q={q}"],
+  ["you", "You.com", "you.com", "https://you.com/search?q={q}"],
+  ["mojeek", "Mojeek", "mojeek.com", "https://www.mojeek.com/search?q={q}"],
+  ["swisscows", "Swisscows", "swisscows.com", "https://swisscows.com/web?query={q}"],
+  ["dogpile", "Dogpile", "dogpile.com", "https://www.dogpile.com/serp?q={q}"],
+  ["metager", "MetaGer", "metager.org", "https://metager.org/meta/meta.ger3?eingabe={q}"],
+  ["presearch", "Presearch", "presearch.com", "https://presearch.com/search?q={q}"]
+].map(([id, name, domain, template]) => ({ id, name, domain, template }));
+
+function iconUrl(domain) {
+  return "https://www.google.com/s2/favicons?domain=" + domain + "&sz=64";
+}
+
+function engineFile() {
+  return path.join(app.getPath("userData"), "engine.json");
+}
+
+function currentEngine() {
+  try {
+    const id = JSON.parse(fs.readFileSync(engineFile(), "utf8")).id;
+    return ENGINES.find((item) => item.id === id) || ENGINES[0];
+  } catch {
+    return ENGINES[0];
+  }
+}
+
+function setEngine(id) {
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(engineFile(), JSON.stringify({ id }));
+}
+
+function searchUrl(query) {
+  return currentEngine().template.replace("{q}", encodeURIComponent(query));
+}
 
 app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36";
 
@@ -78,18 +155,50 @@ function page(title, body) {
     .row b { display: block; }
     .row span { color: #188038; font-size: 13px; word-break: break-all; }
     .note { color: #5f6368; }
+    @media (prefers-color-scheme: dark) {
+      body { background: #202124; color: #e8eaed; }
+      .story { color: #e8eaed; border-top-color: #3c4043; }
+      form input, .searchline .engine, .picker { background: #303134; color: #e8eaed; border-color: #3c4043; }
+      .choice { color: #e8eaed; }
+      .choice.selected { background: #3c4043; }
+      .row { border-bottom-color: #3c4043; }
+      .note { color: #9aa0a6; }
+    }
+    .searchline { display: flex; align-items: center; gap: 8px; width: min(640px, 100%); }
+    .searchline form { position: relative; flex: 1; width: auto; margin: 0; }
+    .searchline input { padding: 0 46px 0 18px; }
+    .searchline .engine, .searchline .lens { margin: 0; border: 0; cursor: pointer; }
+    .searchline .engine { width: 46px; height: 46px; border-radius: 23px; border: 1px solid #dfe1e5; background: #fff; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .searchline .lens { position: absolute; right: 6px; top: 5px; width: 36px; height: 36px; padding: 0; background: transparent; }
+    .engine img, .choice img { width: 22px; height: 22px; }
+    .picker { display: none; width: min(640px, 100%); margin-top: 10px; max-height: 280px; overflow: auto; background: #fff; border: 1px solid #dadce0; border-radius: 16px; box-shadow: 0 8px 24px rgba(32,33,36,.16); }
+    .picker.open { display: grid; grid-template-columns: 1fr 1fr; }
+    .choice { display: flex; align-items: center; gap: 8px; padding: 10px 12px; text-decoration: none; color: #202124; }
+    .choice.selected { background: #f1f3f4; }
     button { margin-top: 16px; }
   </style></head><body>${body}</body></html>`;
 }
 
 function homeHtml(shortcuts) {
+  const engine = currentEngine();
   const tiles = (shortcuts || []).slice(0, 8).map((item) =>
     `<a class="row" href="${escapeHtml(item.url)}"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.url)}</span></a>`
   ).join("");
+  const choices = ENGINES.map((item) => {
+    const selected = item.id === engine.id ? " selected" : "";
+    return `<a class="choice${selected}" href="https://orion.glove/engine?id=${item.id}"><img src="${iconUrl(item.domain)}" alt=""><span>${escapeHtml(item.name)}</span></a>`;
+  }).join("");
   return page("Glove Browser", `<main class="ntp"><div class="hero" style="display:flex;flex-direction:column;align-items:center">
     <img class="mark" src="${logoData}" alt="">
     <div class="logo">Glove</div>
-    <form action="https://orion.glove/search" method="get"><input name="q" placeholder="Введите запрос или адрес" autofocus></form>
+    <div class="searchline">
+      <button class="engine" type="button" title="${escapeHtml(engine.name)}" onclick="document.getElementById('picker').classList.toggle('open')"><img src="${iconUrl(engine.domain)}" alt=""></button>
+      <form action="https://orion.glove/search" method="get">
+        <input name="q" placeholder="Введите запрос или адрес" autofocus>
+        <button class="lens" type="submit" title="Найти" aria-label="Найти"><svg viewBox="0 0 24 24" width="22" height="22"><path fill="#5f6368" d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg></button>
+      </form>
+    </div>
+    <div class="picker" id="picker">${choices}</div>
     <div style="width:min(560px,86vw);margin-top:28px">${tiles}</div></div>
     <section class="news"><h2>Новости</h2><div id="news"><p class="note">Собираем новости…</p></div></section></main>
     <script>function gloveNews(html){ var n=document.getElementById("news"); if(n) n.innerHTML=html; }</script>`);
@@ -106,7 +215,7 @@ function listHtml(kind, items) {
   const titles = { bookmarks: "Закладки", history: "История", downloads: "Загрузки", settings: "Настройки" };
   if (kind === "settings") {
     return page("Настройки", `<main class="serp"><h1>Настройки</h1>
-      <p>Glove Browser 1.3.0<br>Поиск Orion<br>Windows 7 и новее</p>
+      <p>Glove Browser ${APP_VERSION}<br>Поиск: Яндекс<br>Windows 7 и новее<br>Дополнения ставятся из меню «Дополнения».</p>
       <p><a href="https://orion.glove/clear-history">Очистить историю</a></p>
       <p><a href="https://orion.glove/clear-bookmarks">Очистить закладки</a></p></main>`);
   }
@@ -195,7 +304,7 @@ function introHtml() {
   return page("Glove Browser", `<main class="ntp" style="padding-top:12vh">
     <img class="mark" src="${logoData}" alt="">
     <div class="logo">Glove</div>
-    <p class="note" style="max-width:520px;text-align:center">Строка сверху открывает адрес или поиск Orion. Вкладки стоят над ней. Меню справа открывает закладки, историю и загрузки.</p>
+    <p class="note" style="max-width:520px;text-align:center">Строка сверху открывает адрес или поиск. Кнопка слева выбирает поисковую систему, лупа справа начинает поиск. Меню открывает закладки, историю и загрузки.</p>
     <p><a href="https://orion.glove/make-default">Сделать браузером по умолчанию</a></p>
     <p><a href="https://orion.glove/intro-done">Начать</a></p>
   </main>`);
@@ -281,7 +390,8 @@ function createWindow(incognito) {
     activeId: 0,
     chromeHeight: 88,
     ready: false,
-    closed: []
+    closed: [],
+    covered: false
   };
   windows.add(state);
 
@@ -289,7 +399,11 @@ function createWindow(incognito) {
     const file = path.join(app.getPath("downloads"), item.getFilename());
     item.setSavePath(file);
     item.once("done", (_done, itemState) => {
-      if (itemState === "completed" && !incognito) addDownload(item.getFilename(), file);
+      if (itemState !== "completed") return;
+      if (!incognito) addDownload(item.getFilename(), file);
+      if (!incognito && extensions.isCrxDownload(item.getFilename(), item.getMimeType(), item.getURL())) {
+        extensions.installDownloaded(win, file);
+      }
     });
   });
 
@@ -298,6 +412,7 @@ function createWindow(incognito) {
   }
 
   function layout() {
+    if (state.covered) return;
     const tab = activeTab();
     if (!tab) return;
     const [width, height] = win.getContentSize();
@@ -320,9 +435,12 @@ function createWindow(incognito) {
       canForward: !!(contents && contents.canGoForward()),
       loading: !!(contents && contents.isLoading()),
       home,
-      display: home ? "" : url
+      display: home ? "" : url,
+      engineId: currentEngine().id,
+      engines: ENGINES.map((item) => ({ id: item.id, name: item.name, icon: iconUrl(item.domain) })),
+      picker: !!state.covered
     });
-    layout();
+    if (!state.covered) layout();
   }
 
   function showHtml(tab, html) {
@@ -353,14 +471,7 @@ function createWindow(incognito) {
 
   async function runSearch(tab, query) {
     tab.title = query;
-    try {
-      const hits = await search(query);
-      if (!state.tabs.includes(tab)) return;
-      showHtml(tab, resultsHtml(query, hits));
-    } catch {
-      if (!state.tabs.includes(tab)) return;
-      showHtml(tab, resultsHtml(query, [], "Не удалось получить результаты. Проверьте сеть."));
-    }
+    tab.view.webContents.loadURL(searchUrl(query));
     publish();
   }
 
@@ -370,7 +481,14 @@ function createWindow(incognito) {
     if (parsed.pathname.startsWith("/search")) {
       const query = parsed.searchParams.get("q") || "";
       if (!query) showHome(tab);
+      else if (looksLikeUrl(query)) tab.view.webContents.loadURL(normalize(query));
       else runSearch(tab, query);
+      return;
+    }
+    if (parsed.pathname === "/engine") {
+      setEngine(parsed.searchParams.get("id") || "yandex");
+      showHome(tab);
+      publish();
       return;
     }
     if (parsed.pathname === "/bookmarks") return showLibrary(tab, "bookmarks");
@@ -520,8 +638,16 @@ function createWindow(incognito) {
       { label: "Масштаб +", accelerator: "CmdOrCtrl+numadd", click: () => zoom(0.1) },
       { label: "Масштаб −", accelerator: "CmdOrCtrl+numsub", click: () => zoom(-0.1) },
       { type: "separator" },
+      {
+        label: "Тёмная тема",
+        submenu: [
+          { label: "Как в системе", type: "radio", checked: themeMode() !== "dark", click: () => applyTheme("system") },
+          { label: "Всегда включена", type: "radio", checked: themeMode() === "dark", click: () => applyTheme("dark") }
+        ]
+      },
       { label: "Настройки", click: () => tab && showLibrary(tab, "settings") },
-      { label: "О программе", click: () => dialog.showMessageBox(win, { message: "Glove Browser 1.3.0", detail: "Поиск Orion" }) }
+      extensions.menuEntry(win, pageUrl),
+      { label: "О программе", click: () => dialog.showMessageBox(win, { message: "Glove Browser " + APP_VERSION, detail: "Поиск: Яндекс" }) }
     ]);
     menu.popup({ window: win });
   }
@@ -602,6 +728,29 @@ function createWindow(incognito) {
     if (event.sender !== win.webContents) return;
     popupMenu();
   });
+  ipcMain.on("toggle-picker", (event) => {
+    if (event.sender !== win.webContents) return;
+    state.covered = !state.covered;
+    if (state.covered) {
+      state.tabs.forEach((item) => win.removeBrowserView(item.view));
+    } else {
+      const tab = activeTab();
+      if (tab) win.addBrowserView(tab.view);
+    }
+    publish();
+  });
+  ipcMain.on("choose-engine", (event, id) => {
+    if (event.sender !== win.webContents) return;
+    setEngine(id);
+    state.covered = false;
+    const tab = activeTab();
+    if (tab) {
+      win.addBrowserView(tab.view);
+      const url = tab.view.webContents.isDestroyed() ? "" : tab.view.webContents.getURL();
+      if (!url || url.startsWith("data:")) showHome(tab);
+    }
+    publish();
+  });
   ipcMain.on("find", (event, text, again) => {
     if (event.sender !== win.webContents) return;
     const tab = activeTab();
@@ -640,7 +789,9 @@ if (!gotLock) {
       first.win.focus();
     }
   });
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    applyTheme(themeMode());
+    try { await extensions.reloadEnabled(); } catch { /* keep the window usable */ }
     createWindow(false);
   });
 }

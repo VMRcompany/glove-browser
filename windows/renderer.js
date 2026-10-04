@@ -39,6 +39,30 @@ function render(state) {
   if (!address.matches(":focus")) {
     address.value = state.home ? "" : (state.display || "");
   }
+  const engineImg = document.querySelector("#engine img");
+  const current = (state.engines || []).find((item) => item.id === state.engineId);
+  if (current && engineImg) {
+    engineImg.src = current.icon;
+    document.getElementById("engine").title = current.name;
+  }
+  const picker = document.getElementById("enginePicker");
+  picker.hidden = !state.picker;
+  if (state.picker) {
+    picker.innerHTML = "";
+    (state.engines || []).forEach((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "choice" + (item.id === state.engineId ? " selected" : "");
+      const img = document.createElement("img");
+      img.src = item.icon;
+      img.alt = "";
+      const label = document.createElement("span");
+      label.textContent = item.name;
+      button.append(img, label);
+      button.addEventListener("click", () => window.glove.chooseEngine(item.id));
+      picker.append(button);
+    });
+  }
 }
 
 window.glove.onState(render);
@@ -52,6 +76,10 @@ document.getElementById("reload").onclick = () => {
 };
 document.getElementById("home").onclick = () => window.glove.home();
 document.getElementById("menu").onclick = () => window.glove.menu();
+document.getElementById("engine").onclick = (event) => {
+  event.preventDefault();
+  window.glove.togglePicker();
+};
 document.getElementById("min").onclick = () => window.glove.window("minimize");
 document.getElementById("max").onclick = () => window.glove.window("maximize");
 document.getElementById("close").onclick = () => window.glove.window("close");

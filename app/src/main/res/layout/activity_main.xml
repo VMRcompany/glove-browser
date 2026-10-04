@@ -21,6 +21,16 @@
             android:paddingStart="6dp"
             android:paddingEnd="2dp">
 
+            <ImageButton
+                android:id="@+id/engine"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/search_engine"
+                android:padding="8dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_search" />
+
             <LinearLayout
                 android:id="@+id/omnibox"
                 android:layout_width="0dp"
@@ -107,7 +117,7 @@
                 android:id="@+id/webContainer"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:background="#FFFFFF" />
+                android:background="@color/toolbar" />
         </com.glove.browser.RefreshLayout>
 
         <LinearLayout
@@ -174,7 +184,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_marginTop="57dp"
-        android:background="#FFFFFF"
+        android:background="@color/toolbar"
         android:divider="@color/hairline"
         android:dividerHeight="1dp"
         android:visibility="gone" />
@@ -258,7 +268,7 @@
         android:id="@+id/intro"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#FFFFFF"
+        android:background="@color/toolbar"
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:padding="28dp"

@@ -3,7 +3,11 @@ package com.glove.browser
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
+import android.app.PendingIntent
 import android.app.role.RoleManager
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.res.Configuration
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -26,6 +30,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
+import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -49,6 +54,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.webkit.ScriptHandler
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.glove.browser.databinding.ActivityMainBinding
@@ -130,6 +136,7 @@ class MainActivity : AppCompatActivity() {
         binding.tabCount.setOnClickListener { openSwitcher() }
         binding.menu.setOnClickListener { showMenu() }
         binding.security.setOnClickListener { onSecurityClick() }
+        binding.engine.setOnClickListener { showEnginePicker() }
         binding.action.setOnClickListener { onActionClick() }
         binding.switcherBack.setOnClickListener { closeSwitcher() }
         binding.switcherMode.setOnClickListener {
@@ -143,10 +150,11 @@ class MainActivity : AppCompatActivity() {
         }
         binding.swipe.setColorSchemeColors(ContextCompat.getColor(this, R.color.accent))
         binding.swipe.setDistanceToTriggerSync((140 * resources.displayMetrics.density).toInt())
-        binding.swipe.setOnChildScrollUpCallback { _, _ ->
-            val web = tabs.getOrNull(index)?.webView
-            web != null && (web.scrollY > 0 || web.canScrollVertically(-1))
+        binding.swipe.atTop = {
+            val tab = tabs.getOrNull(index)
+            tab != null && tab.atTop && tab.webView.scrollY <= 2 && !tab.webView.canScrollVertically(-1)
         }
+        binding.swipe.setOnChildScrollUpCallback { _, _ -> !binding.swipe.atTop() }
         binding.swipe.setOnRefreshListener {
             val tab = current()
             if (tab.home) showHome(tab) else tab.webView.reload()
@@ -196,15 +204,74 @@ class MainActivity : AppCompatActivity() {
             override fun handleOnBackPressed() = goBack()
         })
 
-        openTab(false)
-        intent?.dataString?.let { if (it.startsWith("http")) navigate(it) }
-        if (!store.introSeen) showIntro()
+        applyLaunch(intent, fresh = true)
+        if (intent?.action != ACTION_INCOGNITO && !store.introSeen) showIntro()
         binding.browser.requestFocus()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.dataString?.let { if (it.startsWith("http")) navigate(it) }
+        setIntent(intent)
+        applyLaunch(intent, fresh = false)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        tabs.forEach { applyPageTheme(it.webView.settings) }
+        val tab = tabs.getOrNull(index) ?: return
+        if (tab.home) showHome(tab) else paintLocation(tab)
+        paintToolbar()
+    }
+
+    private fun nightOn(): Boolean =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    private fun chromeDark(incognito: Boolean) = incognito || nightOn()
+
+    private fun applyPageTheme(settings: WebSettings) {
+        val dark = nightOn()
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, dark)
+        } else if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
+            WebSettingsCompat.setForceDark(
+                settings,
+                if (dark) WebSettingsCompat.FORCE_DARK_ON else WebSettingsCompat.FORCE_DARK_OFF
+            )
+        }
+    }
+
+    private fun applyLaunch(intent: Intent?, fresh: Boolean) {
+        when (intent?.action) {
+            ACTION_NEW_TAB -> openTab(false)
+            ACTION_INCOGNITO -> openTab(true)
+            ACTION_ABOUT -> {
+                if (fresh || tabs.isEmpty()) openTab(false)
+                startActivity(Intent(this, SettingsActivity::class.java))
+            }
+            ACTION_WIDGETS -> {
+                if (fresh || tabs.isEmpty()) openTab(false)
+                pinWidget()
+            }
+            else -> {
+                if (fresh || tabs.isEmpty()) openTab(false)
+                intent?.dataString?.let { if (it.startsWith("http")) navigate(it) }
+            }
+        }
+    }
+
+    private fun pinWidget() {
+        val manager = AppWidgetManager.getInstance(this)
+        if (!manager.isRequestPinAppWidgetSupported) {
+            Toast.makeText(this, R.string.widget_pin_unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+        val success = PendingIntent.getActivity(
+            this,
+            2,
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        manager.requestPinAppWidget(ComponentName(this, GloveWidget::class.java), null, success)
     }
 
     private fun goBack() {
@@ -252,7 +319,6 @@ class MainActivity : AppCompatActivity() {
         paintLocation(tab)
         paintToolbar()
         binding.swipe.isRefreshing = false
-        binding.swipe.isEnabled = tab.webView.scrollY <= 0
     }
 
     private fun showHome(tab: Tab) {
@@ -260,7 +326,7 @@ class MainActivity : AppCompatActivity() {
         tab.searchGen++
         tab.title = getString(R.string.new_tab)
         val shortcuts = store.bookmarks().take(8).map { it.title to it.url }
-        tab.webView.loadDataWithBaseURL(HOME, Orion.homeHtml(shortcuts, logoUri), "text/html", "utf-8", null)
+        tab.webView.loadDataWithBaseURL(HOME, Orion.homeHtml(shortcuts, logoUri, store.searchEngine, nightOn()), "text/html", "utf-8", null)
         paintLocation(tab)
     }
 
@@ -283,29 +349,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun runSearch(tab: Tab, query: String) {
-        tab.home = false
-        tab.title = query
-        tab.searchGen++
-        val gen = tab.searchGen
-        tab.webView.loadDataWithBaseURL(
-            HOME,
-            Orion.resultsHtml(query, emptyList(), "Ищем…"),
-            "text/html",
-            "utf-8",
-            null
-        )
-        thread(name = "orion") {
-            val html = try {
-                Orion.resultsHtml(query, Orion.search(query), null)
-            } catch (_: Exception) {
-                Orion.resultsHtml(query, emptyList(), "Не удалось получить результаты. Проверьте сеть.")
-            }
-            runOnUiThread {
-                if (tab.searchGen == gen && tabs.contains(tab)) {
-                    tab.webView.loadDataWithBaseURL(HOME, html, "text/html", "utf-8", null)
-                }
-            }
+        val text = query.trim()
+        if (text.isEmpty()) {
+            showHome(tab)
+            return
         }
+        if (looksLikeUrl(text)) {
+            tab.home = false
+            tab.webView.loadUrl(normalize(text))
+            return
+        }
+        tab.home = false
+        tab.title = text
+        tab.webView.loadUrl(SearchEngines.searchUrl(store.searchEngine, text))
     }
 
     private fun looksLikeUrl(text: String): Boolean {
@@ -338,11 +394,10 @@ class MainActivity : AppCompatActivity() {
         settings.safeBrowsingEnabled = true
         settings.cacheMode = if (incognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
         applyClientMode(view)
-        view.setOnScrollChangeListener { scrolled, _, scrollY, _, _ ->
-            if (tabs.getOrNull(index)?.webView === scrolled) {
-                binding.swipe.isEnabled = scrollY <= 0
-            }
-        }
+        applyPageTheme(view.settings)
+        view.addJavascriptInterface(ScrollTopBridge(view) { source, atTop ->
+            tabs.find { it.webView === source }?.atTop = atTop
+        }, "GloveScroll")
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
         view.setDownloadListener { url, userAgent, contentDisposition, mime, _ ->
             download(url, userAgent, contentDisposition, mime)
@@ -369,8 +424,18 @@ class MainActivity : AppCompatActivity() {
                 val uri = request.url
                 if (uri.host == "orion.glove") {
                     val tab = tabs.find { it.webView === v } ?: return true
-                    val q = uri.getQueryParameter("q").orEmpty()
-                    if (q.isBlank()) showHome(tab) else runSearch(tab, q)
+                    when (uri.path) {
+                        "/engine" -> {
+                            store.searchEngine = uri.getQueryParameter("id").orEmpty().ifBlank { "yandex" }
+                            paintEngine()
+                            showHome(tab)
+                        }
+                        "/search" -> {
+                            val q = uri.getQueryParameter("q").orEmpty()
+                            if (q.isBlank()) showHome(tab) else runSearch(tab, q)
+                        }
+                        else -> showHome(tab)
+                    }
                     return true
                 }
                 val scheme = uri.scheme?.lowercase() ?: return false
@@ -402,9 +467,9 @@ class MainActivity : AppCompatActivity() {
                 }
                 if (desktop) runDesktopScript(v)
                 if (tab.home) publishNews(tab)
+                v.evaluateJavascript(SCROLL_WATCH, null)
                 if (tabs.getOrNull(index)?.webView === v) {
                     binding.swipe.isRefreshing = false
-                    binding.swipe.isEnabled = v.scrollY <= 0
                     paintLocation(tab)
                     paintToolbar()
                 }
@@ -522,17 +587,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun paintLocation(tab: Tab) {
-        val incognito = tab.incognito
-        val icon = if (incognito) Color.WHITE else Color.parseColor("#3C4043")
-        val text = if (incognito) Color.WHITE else Color.parseColor("#202124")
-        val hint = if (incognito) Color.parseColor("#9AA0A6") else Color.parseColor("#80868B")
+        val dark = chromeDark(tab.incognito)
+        val icon = if (dark) Color.WHITE else Color.parseColor("#3C4043")
+        val text = if (dark) Color.WHITE else Color.parseColor("#202124")
+        val hint = if (dark) Color.parseColor("#9AA0A6") else Color.parseColor("#80868B")
         binding.address.setTextColor(text)
         binding.address.setHintTextColor(hint)
         binding.security.setColorFilter(icon)
         binding.action.setColorFilter(icon)
         val bg = GradientDrawable().apply {
             cornerRadius = 20f * resources.displayMetrics.density
-            setColor(if (incognito) Color.parseColor("#303134") else Color.parseColor("#F1F3F4"))
+            setColor(if (dark) Color.parseColor("#303134") else Color.parseColor("#F1F3F4"))
         }
         binding.omnibox.background = bg
         if (!binding.address.hasFocus()) {
@@ -544,8 +609,20 @@ class MainActivity : AppCompatActivity() {
                     else -> hostOf(url)
                 }
             )
-            binding.action.setImageResource(if (tab.loading) R.drawable.ic_close else R.drawable.ic_reload)
-            binding.action.contentDescription = getString(if (tab.loading) R.string.stop else R.string.reload)
+            binding.action.setImageResource(
+                when {
+                    tab.loading -> R.drawable.ic_close
+                    tab.home -> R.drawable.ic_search
+                    else -> R.drawable.ic_reload
+                }
+            )
+            binding.action.contentDescription = getString(
+                when {
+                    tab.loading -> R.string.stop
+                    tab.home -> R.string.find_web
+                    else -> R.string.reload
+                }
+            )
         }
         val url = tab.webView.url.orEmpty()
         val secure = url.startsWith("https://") && !tab.home
@@ -560,14 +637,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun paintToolbar() {
         val incognito = tabs.getOrNull(index)?.incognito == true
-        val bar = if (incognito) Color.parseColor("#202124") else Color.WHITE
-        val icon = if (incognito) Color.WHITE else Color.parseColor("#3C4043")
+        val dark = chromeDark(incognito)
+        val bar = if (dark) Color.parseColor("#202124") else Color.WHITE
+        val icon = if (dark) Color.WHITE else Color.parseColor("#3C4043")
         binding.toolbar.setBackgroundColor(bar)
         binding.root.setBackgroundColor(bar)
         window.statusBarColor = bar
         window.navigationBarColor = bar
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !incognito
-        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightNavigationBars = !incognito
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !dark
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightNavigationBars = !dark
         binding.menu.setColorFilter(icon)
         binding.tabCount.setTextColor(icon)
         (binding.tabCount.background.mutate() as? GradientDrawable)?.setStroke(
@@ -575,6 +653,60 @@ class MainActivity : AppCompatActivity() {
             icon
         )
         binding.tabCount.text = tabs.count { it.incognito == incognito }.coerceAtLeast(1).toString()
+        paintEngine()
+    }
+
+    private fun paintEngine() {
+        val engine = SearchEngines.get(store.searchEngine)
+        binding.engine.contentDescription = engine.name
+        SearchEngines.cachedIcon(engine.domain)?.let { binding.engine.setImageBitmap(it) }
+            ?: SearchEngines.loadIcon(engine.domain) { bitmap ->
+                runOnUiThread {
+                    if (SearchEngines.get(store.searchEngine).domain == engine.domain) {
+                        binding.engine.setImageBitmap(bitmap)
+                    }
+                }
+            }
+    }
+
+    private fun showEnginePicker() {
+        val engines = SearchEngines.all
+        val list = android.widget.ListView(this)
+        list.layoutParams = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            (resources.displayMetrics.heightPixels * 0.62f).toInt()
+        )
+        list.adapter = object : android.widget.BaseAdapter() {
+            override fun getCount() = engines.size
+            override fun getItem(position: Int) = engines[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = convertView ?: layoutInflater.inflate(R.layout.item_engine, parent, false)
+                val engine = engines[position]
+                row.findViewById<TextView>(R.id.title).text = engine.name
+                val icon = row.findViewById<ImageView>(R.id.favicon)
+                val cached = SearchEngines.cachedIcon(engine.domain)
+                if (cached != null) icon.setImageBitmap(cached)
+                else SearchEngines.loadIcon(engine.domain) { bitmap -> icon.post { icon.setImageBitmap(bitmap) } }
+                row.setBackgroundColor(
+                    if (engine.id == store.searchEngine) {
+                        if (nightOn()) Color.parseColor("#3C4043") else Color.parseColor("#E8F0FE")
+                    } else Color.TRANSPARENT
+                )
+                return row
+            }
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.search_engine)
+            .setView(list)
+            .create()
+        list.setOnItemClickListener { _, _, position, _ ->
+            store.searchEngine = engines[position].id
+            paintEngine()
+            if (current().home) showHome(current())
+            dialog.dismiss()
+        }
+        dialog.show()
     }
 
     private fun hostOf(url: String?): String {
@@ -603,7 +735,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val tab = current()
-        if (tab.loading) tab.webView.stopLoading() else if (tab.home) showHome(tab) else tab.webView.reload()
+        if (tab.loading) tab.webView.stopLoading()
+        else if (tab.home) binding.address.requestFocus()
+        else tab.webView.reload()
     }
 
     private fun showMenu() {
@@ -631,6 +765,7 @@ class MainActivity : AppCompatActivity() {
             add(0, 17, 17, R.string.zoom_out).isEnabled = !tab.home
             add(0, 18, 18, R.string.close_others).isEnabled = tabs.size > 1
             add(0, 13, 19, R.string.settings)
+            add(0, 19, 20, R.string.extensions)
         }
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -653,6 +788,11 @@ class MainActivity : AppCompatActivity() {
                 11 -> copy(tab.webView.url)
                 12 -> showHome(current())
                 13 -> startActivity(Intent(this, SettingsActivity::class.java))
+                19 -> AlertDialog.Builder(this)
+                    .setTitle(R.string.extensions)
+                    .setMessage(R.string.extensions_android)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show()
                 14 -> openTab(tab.incognito, if (tab.home) null else tab.webView.url)
                 15 -> if (closedTabs.isNotEmpty()) openTab(false, closedTabs.removeAt(0))
                 16 -> tab.webView.settings.textZoom = (tab.webView.settings.textZoom + 10).coerceAtMost(200)
@@ -873,13 +1013,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun paintSwitcher() {
         val count = tabs.count { it.incognito == switcherIncognito }
-        val dark = switcherIncognito
+        val dark = switcherIncognito || nightOn()
         val bg = if (dark) Color.parseColor("#202124") else Color.parseColor("#DEE1E6")
         val fg = if (dark) Color.WHITE else Color.parseColor("#202124")
         binding.switcher.setBackgroundColor(bg)
         binding.switcherTitle.setTextColor(fg)
         binding.switcherTitle.text = resources.getQuantityString(R.plurals.tab_count, count, count)
-        binding.switcherMode.setText(if (dark) R.string.new_tab else R.string.incognito)
+        binding.switcherMode.setText(if (switcherIncognito) R.string.new_tab else R.string.incognito)
         binding.switcherBack.setColorFilter(fg)
         window.statusBarColor = bg
         WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = !dark
@@ -977,14 +1117,15 @@ class MainActivity : AppCompatActivity() {
             val at = visibleTabPositions()[position]
             val tab = tabs[at]
             holder.title.text = tab.title.ifBlank { getString(R.string.new_tab) }
-            holder.title.setTextColor(if (tab.incognito) Color.WHITE else Color.parseColor("#202124"))
+            val darkCard = chromeDark(tab.incognito)
+            holder.title.setTextColor(if (darkCard) Color.WHITE else Color.parseColor("#202124"))
             holder.favicon.setImageBitmap(tab.favicon)
             if (tab.favicon == null) holder.favicon.setImageResource(R.drawable.ic_search)
             holder.preview.setImageBitmap(tab.preview)
-            holder.close.setColorFilter(if (tab.incognito) Color.WHITE else Color.parseColor("#3C4043"))
+            holder.close.setColorFilter(if (darkCard) Color.WHITE else Color.parseColor("#3C4043"))
             holder.itemView.background = GradientDrawable().apply {
                 cornerRadius = 16f * resources.displayMetrics.density
-                setColor(if (tab.incognito) Color.parseColor("#3C4043") else Color.WHITE)
+                setColor(if (darkCard) Color.parseColor("#3C4043") else Color.WHITE)
             }
             holder.itemView.setOnClickListener {
                 index = at
@@ -1002,6 +1143,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    class ScrollTopBridge(
+        private val webView: WebView,
+        private val apply: (WebView, Boolean) -> Unit
+    ) {
+        @JavascriptInterface
+        fun setAtTop(atTop: Boolean) {
+            webView.post { apply(webView, atTop) }
+        }
+    }
+
     private class Tab(
         val webView: WebView,
         val incognito: Boolean,
@@ -1010,11 +1161,37 @@ class MainActivity : AppCompatActivity() {
         var loading: Boolean = false,
         var searchGen: Int = 0,
         var favicon: Bitmap? = null,
-        var preview: Bitmap? = null
+        var preview: Bitmap? = null,
+        var atTop: Boolean = true
     )
 
     companion object {
+        const val ACTION_NEW_TAB = "com.glove.browser.action.NEW_TAB"
+        const val ACTION_INCOGNITO = "com.glove.browser.action.INCOGNITO"
+        const val ACTION_ABOUT = "com.glove.browser.action.ABOUT"
+        const val ACTION_WIDGETS = "com.glove.browser.action.WIDGETS"
         private const val HOME = "https://orion.glove/"
+        private const val SCROLL_WATCH = """
+            (function(){
+              if (window.__gloveTop) return;
+              window.__gloveTop = true;
+              function atTop(){
+                var y = window.scrollY || document.documentElement.scrollTop || (document.body && document.body.scrollTop) || 0;
+                if (y > 2) return false;
+                var nodes = document.querySelectorAll('body, body *');
+                var limit = Math.min(nodes.length, 500);
+                for (var i = 0; i < limit; i++) {
+                  var el = nodes[i];
+                  if (el.scrollTop > 2 && el.scrollHeight > el.clientHeight + 4) return false;
+                }
+                return true;
+              }
+              function report(){ try { GloveScroll.setAtTop(atTop()); } catch (e) {} }
+              document.addEventListener('scroll', report, true);
+              document.addEventListener('touchstart', report, true);
+              report();
+            })();
+        """
         private const val DESKTOP_WIDTH = 1280
         private const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"

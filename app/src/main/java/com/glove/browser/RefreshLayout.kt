@@ -2,19 +2,39 @@ package com.glove.browser
 
 import android.content.Context
 import android.util.AttributeSet
-import android.view.ViewGroup
-import android.webkit.WebView
+import android.view.MotionEvent
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
-/** Pull-to-refresh only when the page is already at the top. */
+/** Refresh only when the gesture starts with the page already at the top. */
 class RefreshLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null
 ) : SwipeRefreshLayout(context, attrs) {
-    override fun canChildScrollUp(): Boolean {
-        val frame = getChildAt(0) as? ViewGroup
-        val web = frame?.getChildAt(0) as? WebView
-        if (web != null) return web.scrollY > 0 || web.canScrollVertically(-1)
-        return super.canChildScrollUp()
+    var atTop: () -> Boolean = { true }
+    private var allowGesture = false
+
+    override fun canChildScrollUp(): Boolean = !atTop()
+
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> allowGesture = atTop()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (!allowGesture) return false
+                val handled = super.onInterceptTouchEvent(ev)
+                allowGesture = false
+                return handled
+            }
+        }
+        if (!allowGesture) return false
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        if (!allowGesture) return false
+        val handled = super.onTouchEvent(ev)
+        if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+            allowGesture = false
+        }
+        return handled
     }
 }
