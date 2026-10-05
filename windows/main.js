@@ -5,7 +5,7 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.2";
+const APP_VERSION = "1.8.3";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -89,7 +89,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.2";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.3";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -294,7 +294,7 @@ function homeHtml(shortcuts) {
     <div style="width:min(560px,86vw);margin-top:28px">${tiles}</div></div>
     <section class="news"><h2>Новости</h2><div id="news"><p class="note">Собираем новости…</p></div></section></main>
     <script>function gloveNews(html){ var n=document.getElementById("news"); if(n) n.innerHTML=html; }
-      (function(){ var input=document.querySelector(".searchline input"); var box=document.getElementById("suggest"); if(!input||!box) return; var timer; input.addEventListener("input", function(){ clearTimeout(timer); var q=input.value.trim(); if(!q){ box.innerHTML=""; return; } timer=setTimeout(function(){ fetch("https://suggest.yandex.ru/suggest-ff.cgi?part="+encodeURIComponent(q)+"&uil=ru&v=4&sn=5").then(function(r){return r.text();}).then(function(text){ var data=JSON.parse(text.slice(text.indexOf("["))); var list=data[1]||[]; box.innerHTML=list.slice(0,8).map(function(item){ var label=typeof item==="string"?item:item[0]; return '<a href="https://orion.glove/search?q='+encodeURIComponent(label)+'">'+String(label).replace(/[&<>]/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[ch];})+"</a>"; }).join(""); }).catch(function(){}); }, 160); }); })();
+      (function(){ var input=document.querySelector(".searchline input"); var box=document.getElementById("suggest"); if(!input||!box) return; var timer; function paint(list){ box.innerHTML=(list||[]).slice(0,8).map(function(item){ var label=typeof item==="string"?item:item[0]; return '<a href="https://orion.glove/search?q='+encodeURIComponent(label)+'">'+String(label).replace(/[&<>]/g,function(ch){return {"&":"&amp;","<":"&lt;",">":"&gt;"}[ch];})+"</a>"; }).join(""); } window.gloveSuggestApply=paint; function ask(q){ try{ if(window.GloveSuggest&&typeof GloveSuggest.query==="function"){ var ret=GloveSuggest.query(q); if(ret&&typeof ret.then==="function") ret.then(paint).catch(function(){}); return; } }catch(e){} fetch("https://suggest.yandex.ru/suggest-ff.cgi?part="+encodeURIComponent(q)+"&uil=ru&v=4&sn=5").then(function(r){return r.text();}).then(function(text){ var data=JSON.parse(text.slice(text.indexOf("["))); paint(data[1]||[]); }).catch(function(){}); } input.addEventListener("input", function(){ clearTimeout(timer); var q=input.value.trim(); if(!q){ box.innerHTML=""; return; } timer=setTimeout(function(){ ask(q); }, 160); }); })();
       ${weather.script()}
     </script>`);
 }
@@ -1048,6 +1048,29 @@ ipcMain.handle("weather-load", async (event, lat, lon) => {
         : "https://yandex.ru/pogoda/"
     };
   }
+});
+
+ipcMain.handle("suggest-page", async (event, text) => {
+  const fromPage = [...windows].some((item) => (item.tabs || []).some((tab) => tab.view.webContents === event.sender));
+  if (!fromPage) return [];
+  const q = String(text || "").trim();
+  if (!q) return [];
+  return await new Promise((resolve) => {
+    const url = "https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5";
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.3" } }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => {
+        try {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          const data = JSON.parse(raw.slice(raw.indexOf("[")));
+          resolve((data[1] || []).map((item) => (typeof item === "string" ? item : item[0])).filter(Boolean).slice(0, 8));
+        } catch {
+          resolve([]);
+        }
+      });
+    }).on("error", () => resolve([]));
+  });
 });
 
 const gotLock = app.requestSingleInstanceLock();

@@ -9,3 +9,7 @@ contextBridge.exposeInMainWorld("gloveFill", (origin) => ipcRenderer.sendSync("v
 contextBridge.exposeInMainWorld("GloveWeather", {
   load: (lat, lon) => ipcRenderer.invoke("weather-load", lat, lon)
 });
+
+contextBridge.exposeInMainWorld("GloveSuggest", {
+  query: (q) => ipcRenderer.invoke("suggest-page", q)
+});

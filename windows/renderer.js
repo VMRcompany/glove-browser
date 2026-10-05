@@ -125,10 +125,20 @@ document.getElementById("mic").onclick = (event) => {
 document.getElementById("voiceStop").onclick = () => {
   window.glove.voiceStop();
   document.getElementById("voice").hidden = true;
+  const text = String(address.value || "").trim().replace(/[.…!?]+$/g, "");
+  if (text) window.glove.navigate(text);
 };
+let voiceTimer;
 window.glove.onVoice((text) => {
   document.getElementById("voiceText").textContent = text;
-  address.value = text;
+  address.value = String(text || "").replace(/[.…!?]+$/g, "");
+  clearTimeout(voiceTimer);
+  voiceTimer = setTimeout(() => {
+    window.glove.voiceStop();
+    document.getElementById("voice").hidden = true;
+    const query = String(address.value || "").trim();
+    if (query) window.glove.navigate(query);
+  }, 1600);
 });
 window.glove.onVoiceOpen(openVoice);
 document.getElementById("camera").onclick = (event) => {

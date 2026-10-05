@@ -428,6 +428,7 @@ class MainActivity : AppCompatActivity() {
             tabs.find { it.webView === source }?.atTop = atTop
         }, "GloveScroll")
         if (!incognito) view.addJavascriptInterface(VaultBridge(), "GloveVault")
+        if (!incognito) view.addJavascriptInterface(SuggestBridge(view), "GloveSuggest")
         view.addJavascriptInterface(WeatherBridge(view), "GloveWeather")
         CookieManager.getInstance().setAcceptThirdPartyCookies(view, true)
         view.setDownloadListener { url, userAgent, contentDisposition, mime, _ ->
@@ -1028,8 +1029,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun openVoice() {
         Voice.listen(this) { text ->
-            binding.address.setText(text)
-            binding.address.setSelection(text.length)
+            val query = text.trim().trimEnd('.', '…', '!', '?')
+            binding.address.setText(query)
+            binding.address.setSelection(query.length)
+            if (query.isNotBlank()) navigate(query)
+        }
+    }
+
+    private inner class SuggestBridge(private val view: WebView) {
+        @JavascriptInterface
+        fun query(q: String) {
+            val text = q.trim()
+            if (text.isBlank()) return
+            thread(name = "glove-suggest") {
+                val list = Suggest.yandex(text)
+                val json = org.json.JSONArray(list).toString()
+                runOnUiThread {
+                    if (!tabs.any { it.webView === view } || !view.isAttachedToWindow) return@runOnUiThread
+                    try {
+                        view.evaluateJavascript(
+                            "typeof gloveSuggestApply==='function'&&gloveSuggestApply($json)",
+                            null
+                        )
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
         }
     }
 

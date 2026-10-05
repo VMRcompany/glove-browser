@@ -63,6 +63,7 @@ object Voice {
                     body.text = punctuate(text, true)
                     onText(punctuate(text, true))
                 }
+                if (dialog.isShowing) dialog.dismiss()
             }
             override fun onPartialResults(partialResults: Bundle?) {
                 val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()

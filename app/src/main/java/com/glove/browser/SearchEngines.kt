@@ -165,26 +165,36 @@ object SearchEngines {
                 var box = document.getElementById("suggest");
                 if (!input || !box) return;
                 var timer;
+                function paint(list) {
+                  box.innerHTML = (list || []).slice(0, 8).map(function (item) {
+                    var label = typeof item === "string" ? item : item[0];
+                    var safe = String(label).replace(/[&<>"]/g, function (ch) {
+                      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch];
+                    });
+                    return '<a href="https://orion.glove/search?q=' + encodeURIComponent(label) + '">' + safe + "</a>";
+                  }).join("");
+                }
+                window.gloveSuggestApply = paint;
+                function ask(q) {
+                  try {
+                    if (window.GloveSuggest && typeof GloveSuggest.query === "function") {
+                      var ret = GloveSuggest.query(q);
+                      if (ret && typeof ret.then === "function") ret.then(paint).catch(function () {});
+                      return;
+                    }
+                  } catch (e) {}
+                  fetch("https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5")
+                    .then(function (r) { return r.text(); })
+                    .then(function (text) {
+                      var data = JSON.parse(text.slice(text.indexOf("[")));
+                      paint(data[1] || []);
+                    }).catch(function () {});
+                }
                 input.addEventListener("input", function () {
                   clearTimeout(timer);
                   var q = input.value.trim();
                   if (!q) { box.innerHTML = ""; return; }
-                  timer = setTimeout(function () {
-                    fetch("https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5")
-                      .then(function (r) { return r.text(); })
-                      .then(function (text) {
-                        var start = text.indexOf("[");
-                        var data = JSON.parse(text.slice(start));
-                        var list = data[1] || [];
-                        box.innerHTML = list.slice(0, 8).map(function (item) {
-                          var label = typeof item === "string" ? item : item[0];
-                          var safe = String(label).replace(/[&<>"]/g, function (ch) {
-                            return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch];
-                          });
-                          return '<a href="https://orion.glove/search?q=' + encodeURIComponent(label) + '">' + safe + "</a>";
-                        }).join("");
-                      }).catch(function () {});
-                  }, 160);
+                  timer = setTimeout(function () { ask(q); }, 160);
                 });
               })();
             </script>
