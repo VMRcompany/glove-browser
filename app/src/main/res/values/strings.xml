@@ -49,7 +49,7 @@
     <string name="shortcut_new_tab">Новая вкладка</string>
     <string name="shortcut_incognito">Вкладка инкогнито</string>
     <string name="extensions">Дополнения</string>
-    <string name="extensions_android">Эта сборка открывает страницы системным просмотрщиком. Установка дополнений есть в версии для Windows: папка или файл .crx в меню «Дополнения».</string>
+    <string name="extensions_android">Открыть каталог дополнений</string>
     <string name="widget_name">Glove</string>
     <string name="widget_label">Искать в Glove</string>
     <string name="widget_desc">Поиск и открытие Glove Browser</string>

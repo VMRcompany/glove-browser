@@ -86,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     private var suggestGen = 0
     private var updateDismissed = false
     private var lensUri: Uri? = null
+    private var restoring = false
     private val tabAdapter = TabAdapter()
 
     private val roleRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
@@ -282,10 +283,56 @@ class MainActivity : AppCompatActivity() {
                 pinWidget()
             }
             else -> {
-                if (fresh || tabs.isEmpty()) openTab(false)
+                if (fresh || tabs.isEmpty()) {
+                    if (!restoreSession()) openTab(false)
+                }
                 intent?.dataString?.let { if (it.startsWith("http")) navigate(it) }
             }
         }
+    }
+
+    private fun saveSession() {
+        if (restoring || !::store.isInitialized) return
+        val snapshot = tabs.filter { !it.incognito }.map { tab ->
+            val url = tab.webView.url.orEmpty()
+            val home = tab.home || url.isBlank() || url.startsWith(HOME)
+            BrowserStore.TabState(
+                url = if (home) "" else url,
+                title = tab.title,
+                home = home
+            )
+        }
+        if (snapshot.isEmpty()) {
+            store.saveTabs(emptyList(), 0)
+            return
+        }
+        val active = tabs.getOrNull(index)
+        val activeIndex = if (active == null || active.incognito) 0
+        else snapshot.indexOfFirst { tab ->
+            val url = active.webView.url.orEmpty()
+            val home = active.home || url.isBlank() || url.startsWith(HOME)
+            tab.home == home && tab.url == (if (home) "" else url)
+        }.coerceAtLeast(0)
+        store.saveTabs(snapshot, activeIndex)
+    }
+
+    private fun restoreSession(): Boolean {
+        val saved = store.loadTabs().filter { it.home || it.url.startsWith("http") }
+        if (saved.isEmpty()) return false
+        restoring = true
+        try {
+            saved.forEach { state ->
+                if (state.home || state.url.isBlank()) openTab(false)
+                else openTab(false, state.url)
+            }
+            index = store.loadTabIndex().coerceIn(0, tabs.lastIndex)
+            show(tabs[index])
+            paintToolbar()
+        } finally {
+            restoring = false
+        }
+        saveSession()
+        return true
     }
 
     private fun pinWidget() {
@@ -326,8 +373,12 @@ class MainActivity : AppCompatActivity() {
         tabs += tab
         index = tabs.lastIndex
         show(tab)
-        if (url == null) showHome(tab) else tab.webView.loadUrl(url)
+        if (url == null) showHome(tab) else {
+            tab.home = false
+            tab.webView.loadUrl(url)
+        }
         paintToolbar()
+        if (!incognito) saveSession()
     }
 
     private fun show(tab: Tab) {
@@ -508,6 +559,7 @@ class MainActivity : AppCompatActivity() {
                     paintLocation(tab)
                     paintToolbar()
                 }
+                if (!tab.incognito) saveSession()
             }
         }
         view.webChromeClient = object : WebChromeClient() {
@@ -835,11 +887,14 @@ class MainActivity : AppCompatActivity() {
                 11 -> copy(tab.webView.url)
                 12 -> showHome(current())
                 13 -> startActivity(Intent(this, SettingsActivity::class.java))
-                19 -> AlertDialog.Builder(this)
-                    .setTitle(R.string.extensions)
-                    .setMessage(R.string.extensions_android)
-                    .setPositiveButton(android.R.string.ok, null)
-                    .show()
+                19 -> {
+                    closeSwitcher()
+                    val target = current()
+                    target.home = false
+                    target.webView.loadUrl("https://glove-dop.mineholde.pro/")
+                    paintLocation(target)
+                    paintToolbar()
+                }
                 14 -> openTab(tab.incognito, if (tab.home) null else tab.webView.url)
                 15 -> if (closedTabs.isNotEmpty()) openTab(false, closedTabs.removeAt(0))
                 16 -> tab.webView.settings.textZoom = (tab.webView.settings.textZoom + 10).coerceAtMost(200)
@@ -1319,6 +1374,7 @@ class MainActivity : AppCompatActivity() {
             show(tabs[index])
         }
         paintToolbar()
+        saveSession()
         if (binding.switcher.visibility == View.VISIBLE) {
             paintSwitcher()
             tabAdapter.notifyDataSetChanged()
@@ -1346,8 +1402,14 @@ class MainActivity : AppCompatActivity() {
         tabs.indices.filter { tabs[it].incognito == switcherIncognito }
 
     override fun onPause() {
+        saveSession()
         super.onPause()
         tabs.forEach { it.webView.onPause() }
+    }
+
+    override fun onStop() {
+        saveSession()
+        super.onStop()
     }
 
     override fun onResume() {
@@ -1357,6 +1419,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        saveSession()
         tabs.forEach {
             it.preview?.recycle()
             releaseWebView(it.webView)
@@ -1439,20 +1502,39 @@ class MainActivity : AppCompatActivity() {
             (function(){
               if (window.__gloveTop) return;
               window.__gloveTop = true;
-              function atTop(){
-                var y = window.scrollY || document.documentElement.scrollTop || (document.body && document.body.scrollTop) || 0;
-                if (y > 2) return false;
+              function overlayBlocks(){
+                try {
+                  var nodes = document.querySelectorAll('[role="dialog"],[aria-modal="true"],dialog[open],.modal,.popup,.dropdown,.select2-dropdown,.pac-container,[class*="dropdown"],[class*="Popup"],[class*="popup"],[class*="sheet"],[class*="overlay"]');
+                  for (var i = 0; i < nodes.length; i++) {
+                    var el = nodes[i];
+                    var st = window.getComputedStyle(el);
+                    if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
+                    var r = el.getBoundingClientRect();
+                    if (r.width > 24 && r.height > 24) return true;
+                  }
+                } catch (e) {}
+                return false;
+              }
+              function nestedScrolled(){
                 var nodes = document.querySelectorAll('body, body *');
-                var limit = Math.min(nodes.length, 500);
+                var limit = Math.min(nodes.length, 600);
                 for (var i = 0; i < limit; i++) {
                   var el = nodes[i];
-                  if (el.scrollTop > 2 && el.scrollHeight > el.clientHeight + 4) return false;
+                  if (!el || el.scrollHeight <= el.clientHeight + 4) continue;
+                  if (el.scrollTop > 2) return true;
                 }
-                return true;
+                return false;
+              }
+              function atTop(){
+                if (overlayBlocks()) return false;
+                if (nestedScrolled()) return false;
+                var y = window.scrollY || document.documentElement.scrollTop || (document.body && document.body.scrollTop) || 0;
+                return y <= 2;
               }
               function report(){ try { GloveScroll.setAtTop(atTop()); } catch (e) {} }
               document.addEventListener('scroll', report, true);
               document.addEventListener('touchstart', report, true);
+              document.addEventListener('touchmove', report, true);
               report();
             })();
         """

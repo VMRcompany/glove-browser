@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="tab_count">
+        <item quantity="one">%d вкладка</item>
+        <item quantity="few">%d вкладки</item>
+        <item quantity="many">%d вкладок</item>
+        <item quantity="other">%d вкладок</item>
+    </plurals>
+</resources>

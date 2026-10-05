@@ -212,10 +212,25 @@ async function showExtensions() {
   head.textContent = "Расширения";
   extPanel.append(head);
   if (!items.length) {
-    const empty = document.createElement("p");
-    empty.className = "ext-note";
-    empty.textContent = "Дополнений пока нет. Их можно найти в маркете.";
+    const empty = document.createElement("button");
+    empty.type = "button";
+    empty.className = "ext-row";
+    empty.innerHTML = "<span><b>Открыть маркет дополнений</b><small>glove-dop.mineholde.pro</small></span>";
+    empty.addEventListener("click", () => {
+      window.glove.navigate("https://glove-dop.mineholde.pro/");
+      extPanel.hidden = true;
+    });
     extPanel.append(empty);
+  } else {
+    const market = document.createElement("button");
+    market.type = "button";
+    market.className = "ext-row";
+    market.innerHTML = "<span><b>Маркет дополнений</b><small>Найти ещё</small></span>";
+    market.addEventListener("click", () => {
+      window.glove.navigate("https://orion.glove/market");
+      extPanel.hidden = true;
+    });
+    extPanel.append(market);
   }
   items.forEach((item) => {
     const row = document.createElement("button");

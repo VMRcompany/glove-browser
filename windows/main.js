@@ -5,7 +5,7 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.3";
+const APP_VERSION = "1.8.4";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -89,13 +89,17 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.3";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.4";
 
 const windows = new Set();
 let tabSeq = 1;
 
 function libraryFile() {
   return path.join(app.getPath("userData"), "library.json");
+}
+
+function sessionFile() {
+  return path.join(app.getPath("userData"), "session.json");
 }
 
 function loadLibrary() {
@@ -114,6 +118,34 @@ function loadLibrary() {
 function saveLibrary(data) {
   fs.mkdirSync(path.dirname(libraryFile()), { recursive: true });
   fs.writeFileSync(libraryFile(), JSON.stringify(data));
+}
+
+function loadSession() {
+  try {
+    const data = JSON.parse(fs.readFileSync(sessionFile(), "utf8"));
+    const tabs = Array.isArray(data.tabs) ? data.tabs.filter((item) => item && (item.home || /^https?:/i.test(item.url || ""))) : [];
+    return { tabs, active: Math.max(0, parseInt(data.active, 10) || 0) };
+  } catch {
+    return { tabs: [], active: 0 };
+  }
+}
+
+function saveSession(state) {
+  if (!state || state.incognito) return;
+  try {
+    const tabs = state.tabs.map((tab) => {
+      const url = tab.view.webContents.isDestroyed() ? "" : tab.view.webContents.getURL();
+      const home = !url || url.startsWith("data:") || url.startsWith("https://orion.glove");
+      return {
+        url: home ? "" : url,
+        title: tab.title || "",
+        home
+      };
+    });
+    const activeAt = Math.max(0, state.tabs.findIndex((tab) => tab.id === state.activeId));
+    fs.mkdirSync(path.dirname(sessionFile()), { recursive: true });
+    fs.writeFileSync(sessionFile(), JSON.stringify({ tabs, active: activeAt }));
+  } catch { /* keep browsing even if disk write fails */ }
 }
 
 function addHistory(title, url) {
@@ -680,18 +712,26 @@ function createWindow(incognito) {
     contents.on("did-navigate", (_event, url) => {
       if (!incognito && /^https?:/i.test(url)) addHistory(contents.getTitle(), url);
       publish();
+      saveSession(state);
     });
-    contents.on("did-navigate-in-page", publish);
+    contents.on("did-navigate-in-page", () => {
+      publish();
+      saveSession(state);
+    });
     contents.on("did-start-loading", publish);
     contents.on("did-finish-load", () => {
       const url = contents.getURL();
       if (!incognito && /^https?:/i.test(url)) contents.executeJavaScript(vault.PAGE).catch(() => {});
+      saveSession(state);
     });
-    contents.on("did-stop-loading", publish);
+    contents.on("did-stop-loading", () => {
+      publish();
+      saveSession(state);
+    });
     contents.on("page-favicon-updated", publish);
   }
 
-  function createTab(url) {
+  function createTab(url, opts = {}) {
     const view = new BrowserView({
       webPreferences: {
         session: browserSession,
@@ -701,16 +741,19 @@ function createWindow(incognito) {
         sandbox: true
       }
     });
-    const tab = { id: tabSeq++, title: "Новая вкладка", view };
+    const tab = { id: tabSeq++, title: opts.title || "Новая вкладка", view };
     state.tabs.forEach((item) => win.removeBrowserView(item.view));
     state.tabs.push(tab);
     state.activeId = tab.id;
     win.addBrowserView(view);
     attach(tab);
-    if (!url && !incognito && state.tabs.length === 1 && !introDone()) showIntro(tab);
-    else if (!url) showHome(tab);
-    else openAddress(tab, url);
-    publish();
+    if (!opts.silent) {
+      if (!url && !incognito && state.tabs.length === 1 && !introDone()) showIntro(tab);
+      else if (!url) showHome(tab);
+      else openAddress(tab, url);
+      publish();
+      saveSession(state);
+    }
     return tab;
   }
 
@@ -721,6 +764,7 @@ function createWindow(incognito) {
     state.activeId = id;
     win.addBrowserView(tab.view);
     publish();
+    saveSession(state);
   }
 
   function closeTab(id) {
@@ -735,11 +779,13 @@ function createWindow(incognito) {
     win.removeBrowserView(tab.view);
     if (!tab.view.webContents.isDestroyed()) tab.view.webContents.destroy();
     if (!state.tabs.length) {
+      saveSession(state);
       win.close();
       return;
     }
     if (state.activeId === id) selectTab(state.tabs[Math.max(0, at - 1)].id);
     else publish();
+    saveSession(state);
   }
 
   function showPasswords() {
@@ -834,14 +880,33 @@ function createWindow(incognito) {
   const api = { createTab, selectTab, closeTab, openAddress, showHome, popupMenu, activeTab, publish, layout, state };
 
   win.on("resize", layout);
+  win.on("close", () => saveSession(state));
   win.on("closed", () => {
+    saveSession(state);
     windows.delete(state);
   });
-
   ipcMain.on("ui-ready", (event) => {
     if (event.sender !== win.webContents || state.ready) return;
     state.ready = true;
-    createTab();
+    if (!incognito) {
+      const saved = loadSession();
+      if (saved.tabs.length) {
+        saved.tabs.forEach((item, at) => {
+          const tab = createTab(undefined, { silent: true, title: item.title || "Новая вкладка" });
+          if (item.home || !item.url) showHome(tab);
+          else openAddress(tab, item.url);
+          if (at !== saved.tabs.length - 1) win.removeBrowserView(tab.view);
+        });
+        const pick = state.tabs[Math.min(saved.active, state.tabs.length - 1)];
+        if (pick) selectTab(pick.id);
+        else publish();
+        saveSession(state);
+      } else {
+        createTab();
+      }
+    } else {
+      createTab();
+    }
     event.sender.send("update", { show: updateReady });
   });
   ipcMain.on("suggest", (event, text) => {
@@ -1057,7 +1122,7 @@ ipcMain.handle("suggest-page", async (event, text) => {
   if (!q) return [];
   return await new Promise((resolve) => {
     const url = "https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5";
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.3" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.4" } }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => {

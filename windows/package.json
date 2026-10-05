@@ -1,13 +1,14 @@
 {
   "name": "glove-browser",
   "productName": "Glove Browser",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "description": "Glove Browser",
   "author": "Glove Browser",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --x64"
+    "dist": "electron-builder --win nsis --x64",
+    "dist:legacy": "electron-builder --win nsis --ia32 -c.productName=\"Glove Browser Legacy\" -c.win.artifactName=GloveBrowser-Legacy-Setup.${ext} -c.nsis.shortcutName=\"Glove Browser Legacy\""
   },
   "devDependencies": {
     "electron": "22.3.27",

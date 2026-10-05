@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "GloveBrowser"
 include(":app")
+include(":app-legacy")

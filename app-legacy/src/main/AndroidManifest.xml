@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-sdk tools:overrideLibrary="androidx.annotation.experimental,androidx.activity.ktx,androidx.constraintlayout.widget,androidx.core,androidx.core.ktx,androidx.appcompat,androidx.appcompat.resources,androidx.activity,androidx.fragment,androidx.recyclerview,androidx.swiperefreshlayout,androidx.webkit,androidx.emoji2,androidx.emoji2.views,androidx.emoji2.viewsimpl,androidx.lifecycle.livedata.core,androidx.lifecycle.livedata,androidx.lifecycle.runtime,androidx.lifecycle.runtime.ktx,androidx.lifecycle.viewmodel,androidx.lifecycle.viewmodel.ktx,androidx.lifecycle.viewmodel.savedstate,androidx.lifecycle.process,androidx.savedstate,androidx.savedstate.ktx,androidx.profileinstaller,androidx.tracing,androidx.vectordrawable,androidx.vectordrawable.animated,androidx.drawerlayout,androidx.customview,androidx.customview.poolingcontainer,androidx.coordinatorlayout,androidx.cardview,androidx.viewpager2,androidx.viewpager,androidx.loader,androidx.cursoradapter,androidx.resourceinspection.annotation,androidx.annotation,androidx.collection,androidx.concurrent.futures,androidx.interpolator,androidx.startup,androidx.versionedparcelable,androidx.arch.core.runtime,androidx.arch.core.common,com.google.android.material,androidx.transition,androidx.dynamicanimation,androidx.graphics.shapes,androidx.privacysandbox.activity.core,androidx.legacy.coreutils,androidx.documentfile,androidx.localbroadcastmanager,androidx.print,androidx.multidex" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:name=".GloveApp"
+        android:theme="@style/Theme.GloveBrowser"
+        android:usesCleartextTraffic="true">
+        <activity
+            android:name=".MainActivity"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|uiMode"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".PagesActivity" android:exported="false" />
+        <activity android:name=".SettingsActivity" android:exported="false" />
+
+        <receiver
+            android:name=".GloveWidget"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glove_widget_info" />
+        </receiver>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="toolbar">#202124</color>
+    <color name="omnibox">#303134</color>
+    <color name="ink">#E8EAED</color>
+    <color name="icon">#E8EAED</color>
+    <color name="hint">#9AA0A6</color>
+    <color name="hairline">#3C4043</color>
+    <color name="accent">#8FCB9B</color>
+    <color name="switcher">#202124</color>
+    <color name="card">#303134</color>
+</resources>
