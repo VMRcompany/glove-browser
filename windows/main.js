@@ -5,7 +5,7 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.1";
+const APP_VERSION = "1.8.2";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -89,7 +89,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.1";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.2";
 
 const windows = new Set();
 let tabSeq = 1;

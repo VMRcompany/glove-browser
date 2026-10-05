@@ -1,11 +1,13 @@
 package com.glove.browser
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
+import android.util.Base64
 import java.net.URLEncoder
 
 object SearchEngines {
@@ -72,16 +74,22 @@ object SearchEngines {
         "presearch" to ("#1A56DB" to "P")
     )
 
-    private val icons = mutableMapOf<String, Bitmap>()
+    private val bitmaps = mutableMapOf<String, Bitmap>()
+    private val dataUris = mutableMapOf<String, String>()
 
-    fun iconData(id: String): String {
-        val (color, letter) = marks[id] ?: ("#234230" to "?")
-        val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="16" fill="$color"/><text x="32" y="43" text-anchor="middle" font-size="32" font-family="sans-serif" fill="#fff">$letter</text></svg>"""
-        return "data:image/svg+xml;charset=utf-8," + URLEncoder.encode(svg, "UTF-8").replace("+", "%20")
+    private fun assetBytes(id: String): ByteArray? = try {
+        GloveApp.instance.assets.open("engines/$id.png").use { it.readBytes() }
+    } catch (_: Exception) {
+        null
     }
 
-    fun iconBitmap(id: String): Bitmap {
-        icons[id]?.let { return it }
+    private fun mimeOf(bytes: ByteArray): String = when {
+        bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+        bytes.size >= 6 && bytes.sliceArray(0..5).toString(Charsets.US_ASCII) == "GIF89a" -> "image/gif"
+        else -> "image/png"
+    }
+
+    private fun letterBitmap(id: String): Bitmap {
         val (color, letter) = marks[id] ?: ("#234230" to "?")
         val size = 128
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -96,7 +104,32 @@ object SearchEngines {
         val bounds = Rect()
         paint.getTextBounds(letter, 0, letter.length, bounds)
         canvas.drawText(letter, size / 2f, size / 2f - bounds.exactCenterY(), paint)
-        icons[id] = bitmap
+        return bitmap
+    }
+
+    fun iconData(id: String): String {
+        dataUris[id]?.let { return it }
+        val bytes = assetBytes(id)
+        val uri = if (bytes != null && bytes.size > 64) {
+            "data:${mimeOf(bytes)};base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } else {
+            val (color, letter) = marks[id] ?: ("#234230" to "?")
+            val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" rx="16" fill="$color"/><text x="32" y="43" text-anchor="middle" font-size="32" font-family="sans-serif" fill="#fff">$letter</text></svg>"""
+            "data:image/svg+xml;charset=utf-8," + URLEncoder.encode(svg, "UTF-8").replace("+", "%20")
+        }
+        dataUris[id] = uri
+        return uri
+    }
+
+    fun iconBitmap(id: String): Bitmap {
+        bitmaps[id]?.let { return it }
+        val bytes = assetBytes(id)
+        val bitmap = if (bytes != null && bytes.size > 64) {
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: letterBitmap(id)
+        } else {
+            letterBitmap(id)
+        }
+        bitmaps[id] = bitmap
         return bitmap
     }
 

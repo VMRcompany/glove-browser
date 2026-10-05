@@ -277,7 +277,7 @@ object Weather {
             instanceFollowRedirects = true
             connectTimeout = 12000
             readTimeout = 12000
-            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 GloveBrowser/1.8.1")
+            setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 GloveBrowser/1.8.2")
             setRequestProperty("Accept", "text/html,application/json;q=0.9,*/*;q=0.8")
             setRequestProperty("Accept-Language", "ru-RU,ru;q=0.9,en;q=0.8")
         }
