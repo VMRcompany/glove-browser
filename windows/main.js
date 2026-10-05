@@ -5,7 +5,8 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.4";
+const APP_VERSION = "1.8.5";
+const IS_LEGACY_WIN = process.arch === "ia32";
 
 function themeFile() {
   return path.join(app.getPath("userData"), "theme.json");
@@ -89,7 +90,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.4";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.5";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -260,24 +261,139 @@ function newerVersion(remote, local) {
 
 let updateDismissed = false;
 let updateReady = false;
+let updateInfo = null;
 
-function readVersion(url) {
+function readJson(url) {
   return new Promise((resolve) => {
-    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.7" } }, (response) => {
+    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5", Accept: "application/vnd.github+json, application/json" } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
-        readVersion(response.headers.location).then(resolve);
+        readJson(response.headers.location).then(resolve);
         return;
       }
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => {
-        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")).version || ""); }
-        catch { resolve(""); }
+        try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8"))); }
+        catch { resolve(null); }
       });
     });
-    request.on("error", () => resolve(""));
+    request.on("error", () => resolve(null));
   });
+}
+
+function showUpdatePrompt(win) {
+  if (!updateInfo || updateDismissed || !win || win.isDestroyed()) return;
+  dialog.showMessageBox(win, {
+    type: "info",
+    buttons: ["Обновить сейчас", "Обновить позже"],
+    defaultId: 0,
+    cancelId: 1,
+    noLink: true,
+    message: "Вышло новое обновление Glove Браузера, обновить сейчас?"
+  }).then((result) => {
+    if (result.response === 0) downloadUpdate(win, updateInfo);
+    else updateDismissed = true;
+  }).catch(() => {});
+}
+
+function downloadUpdate(parent, info) {
+  const progressWin = new BrowserWindow({
+    width: 420,
+    height: 160,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    parent: parent && !parent.isDestroyed() ? parent : undefined,
+    modal: true,
+    autoHideMenuBar: true,
+    title: "Обновление Glove Browser",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  progressWin.setMenuBarVisibility(false);
+  progressWin.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(`<!DOCTYPE html><html><body style="font-family:Segoe UI,sans-serif;padding:24px;margin:0">
+    <h3 style="margin:0 0 12px;font-weight:500">Загрузка обновления…</h3>
+    <progress id="p" max="100" value="0" style="width:100%;height:18px"></progress>
+    <p id="t" style="margin:10px 0 0;color:#5f6368">0%</p>
+    <script>
+      window.setProgress = function(pct){
+        document.getElementById("p").value = pct;
+        document.getElementById("t").textContent = pct + "%";
+      };
+    </script></body></html>`));
+
+  const dest = path.join(app.getPath("temp"), info.name || "GloveBrowser-Setup.exe");
+  const file = fs.createWriteStream(dest);
+  const follow = (url) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5", Accept: "application/octet-stream" } }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        response.resume();
+        follow(response.headers.location);
+        return;
+      }
+      const total = Number(response.headers["content-length"] || 0);
+      let loaded = 0;
+      response.on("data", (chunk) => {
+        loaded += chunk.length;
+        file.write(chunk);
+        const pct = total > 0 ? Math.min(100, Math.round((loaded * 100) / total)) : 0;
+        if (!progressWin.isDestroyed()) {
+          progressWin.webContents.executeJavaScript("window.setProgress && window.setProgress(" + pct + ")").catch(() => {});
+        }
+      });
+      response.on("end", () => {
+        file.end(() => {
+          if (!progressWin.isDestroyed()) progressWin.close();
+          shell.openPath(dest).catch(() => {
+            dialog.showMessageBox(parent, { type: "error", message: "Не удалось открыть установщик" });
+          });
+        });
+      });
+      response.on("error", () => {
+        file.close();
+        if (!progressWin.isDestroyed()) progressWin.close();
+        dialog.showMessageBox(parent, { type: "error", message: "Не удалось скачать обновление" });
+      });
+    }).on("error", () => {
+      file.close();
+      if (!progressWin.isDestroyed()) progressWin.close();
+      dialog.showMessageBox(parent, { type: "error", message: "Не удалось скачать обновление" });
+    });
+  };
+  follow(info.url);
+}
+
+async function checkUpdate() {
+  const release = await readJson("https://api.github.com/repos/VMRcompany/glove-browser/releases/latest");
+  let remote = null;
+  if (release && release.tag_name) {
+    const version = String(release.tag_name).replace(/^v/, "");
+    const wanted = IS_LEGACY_WIN ? "GloveBrowser-Legacy-Setup.exe" : "GloveBrowser-Setup.exe";
+    const asset = (release.assets || []).find((item) => String(item.name).toLowerCase() === wanted.toLowerCase());
+    if (asset && version) remote = { version, url: asset.browser_download_url, name: asset.name };
+  }
+  if (!remote) {
+    const fallback = await readJson("https://glove.mineholde.pro/version.json");
+    if (fallback && fallback.version) {
+      remote = {
+        version: fallback.version,
+        url: IS_LEGACY_WIN
+          ? (fallback.exeLegacy || "https://glove.mineholde.pro/downloads/GloveBrowser-Legacy-Setup.exe")
+          : (fallback.exe || "https://glove.mineholde.pro/downloads/GloveBrowser-Setup.exe"),
+        name: IS_LEGACY_WIN ? "GloveBrowser-Legacy-Setup.exe" : "GloveBrowser-Setup.exe"
+      };
+    }
+  }
+  if (!remote || !newerVersion(remote.version, APP_VERSION)) {
+    updateReady = false;
+    updateInfo = null;
+    return;
+  }
+  updateInfo = remote;
+  updateReady = !updateDismissed;
+  if (!updateReady) return;
+  const first = [...windows][0];
+  if (first && !first.win.isDestroyed()) showUpdatePrompt(first.win);
 }
 
 function installProtocol(url, win) {
@@ -288,15 +404,6 @@ function installProtocol(url, win) {
       .then((item) => dialog.showMessageBox(win, { message: "Дополнение установлено", detail: item.name }))
       .catch((error) => dialog.showMessageBox(win, { type: "error", message: "Не удалось установить", detail: String(error.message || error) }));
   } catch { /* ignore a broken link */ }
-}
-
-async function checkUpdate() {
-  const remote = await readVersion("https://glove.mineholde.pro/version.json")
-    || await readVersion("https://raw.githubusercontent.com/VMRcompany/glove-browser/main/docs/version.json");
-  updateReady = !updateDismissed && newerVersion(remote, APP_VERSION);
-  for (const state of windows) {
-    if (!state.win.isDestroyed()) state.win.webContents.send("update", { show: updateReady });
-  }
 }
 
 function homeHtml(shortcuts) {
@@ -446,26 +553,13 @@ function plain(value) {
 async function rssStories(url, source) {
   try {
     const xml = await fetchText(url);
-    return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].slice(0, 4).map((match) => {
+    return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map((match, index) => {
       const block = match[1];
       const title = plain((block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i) || [])[1]);
       const href = ((block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<\]]+)/i) || [])[1] || "").trim();
-      return title && href ? { title, url: href, source } : null;
-    }).filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-async function wikiStories() {
-  const day = new Date();
-  const stamp = day.getUTCFullYear() + "/" + String(day.getUTCMonth() + 1).padStart(2, "0") + "/" + String(day.getUTCDate()).padStart(2, "0");
-  try {
-    const news = JSON.parse(await fetchText("https://ru.wikipedia.org/api/rest_v1/feed/featured/" + stamp)).news || [];
-    return news.slice(0, 3).map((item) => {
-      const link = (item.links || [])[0];
-      const page = link && link.content_urls && link.content_urls.desktop && link.content_urls.desktop.page;
-      return page ? { title: link.title || item.story, url: page, source: "Википедия" } : null;
+      const pub = plain((block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) || [])[1]);
+      const time = Date.parse(pub) || (Date.now() - index * 1000);
+      return title && href ? { title, url: href, source, time } : null;
     }).filter(Boolean);
   } catch {
     return [];
@@ -473,20 +567,40 @@ async function wikiStories() {
 }
 
 async function loadNews() {
-  if (newsCache.html && Date.now() - newsCache.at < 15 * 60 * 1000) return newsCache.html;
-  const dzen = await rssStories("https://dzen.ru/news/rss", "Дзен");
-  const [google, wiki, lenta, fallback] = await Promise.all([
-    rssStories("https://news.google.com/rss?hl=ru&gl=RU&ceid=RU:ru", "Google Новости"),
-    wikiStories(),
-    rssStories("https://lenta.ru/rss/news", "Лента"),
-    dzen.length ? Promise.resolve([]) : rssStories("https://news.yandex.ru/index.rss", "Дзен")
-  ]);
-  const stories = [...google, ...dzen, ...fallback, ...wiki, ...lenta]
-    .filter((item, index, all) => all.findIndex((other) => other.title === item.title) === index)
-    .slice(0, 12);
+  if (newsCache.html && Date.now() - newsCache.at < 10 * 60 * 1000) return newsCache.html;
+  const feeds = [
+    "https://dzen.ru/news/rss",
+    "https://news.yandex.ru/index.rss",
+    "https://news.yandex.ru/politics.rss",
+    "https://news.yandex.ru/society.rss",
+    "https://news.yandex.ru/business.rss",
+    "https://news.yandex.ru/world.rss",
+    "https://news.yandex.ru/sports.rss",
+    "https://news.yandex.ru/incident.rss",
+    "https://news.yandex.ru/computers.rss",
+    "https://news.yandex.ru/science.rss",
+    "https://news.yandex.ru/culture.rss",
+    "https://news.yandex.ru/auto.rss",
+    "https://news.yandex.ru/ecology.rss",
+    "https://news.yandex.ru/travels.rss",
+    "https://news.yandex.ru/showbusiness.rss",
+    "https://news.yandex.ru/gadgets.rss",
+    "https://news.yandex.ru/games.rss",
+    "https://news.yandex.ru/army.rss",
+    "https://news.yandex.ru/energy.rss",
+    "https://news.yandex.ru/finances.rss"
+  ];
+  const batches = await Promise.all(feeds.map((url) => rssStories(url, "Дзен")));
+  const map = new Map();
+  batches.flat().forEach((story) => {
+    const key = String(story.url).split("?")[0].toLowerCase();
+    const prev = map.get(key);
+    if (!prev || story.time > prev.time) map.set(key, story);
+  });
+  const stories = [...map.values()].sort((a, b) => b.time - a.time);
   const html = stories.length
     ? stories.map((story) => `<a class="story" href="${escapeHtml(story.url)}"><b>${escapeHtml(story.title)}</b><span>${escapeHtml(story.source)}</span></a>`).join("")
-    : `<p class="note">Новости сейчас недоступны.</p>`;
+    : `<p class="note">Новости Дзена сейчас недоступны.</p>`;
   newsCache = { at: Date.now(), html };
   return html;
 }
@@ -1122,7 +1236,7 @@ ipcMain.handle("suggest-page", async (event, text) => {
   if (!q) return [];
   return await new Promise((resolve) => {
     const url = "https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5";
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.4" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5" } }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => {

@@ -1,35 +1,59 @@
 package com.glove.browser
 
-import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.concurrent.thread
 
 object NewsFeed {
-    private data class Story(val title: String, val url: String, val source: String)
+    private data class Story(val title: String, val url: String, val source: String, val time: Long)
+
+    /** Dzen News / Яндекс.Новости feeds that power the Dzen лента. */
+    private val feeds = listOf(
+        "https://dzen.ru/news/rss",
+        "https://news.yandex.ru/index.rss",
+        "https://news.yandex.ru/politics.rss",
+        "https://news.yandex.ru/society.rss",
+        "https://news.yandex.ru/business.rss",
+        "https://news.yandex.ru/world.rss",
+        "https://news.yandex.ru/sports.rss",
+        "https://news.yandex.ru/incident.rss",
+        "https://news.yandex.ru/computers.rss",
+        "https://news.yandex.ru/science.rss",
+        "https://news.yandex.ru/culture.rss",
+        "https://news.yandex.ru/auto.rss",
+        "https://news.yandex.ru/ecology.rss",
+        "https://news.yandex.ru/travels.rss",
+        "https://news.yandex.ru/showbusiness.rss",
+        "https://news.yandex.ru/gadgets.rss",
+        "https://news.yandex.ru/games.rss",
+        "https://news.yandex.ru/army.rss",
+        "https://news.yandex.ru/energy.rss",
+        "https://news.yandex.ru/finances.rss"
+    )
 
     @Volatile private var cached: String? = null
     @Volatile private var cachedAt: Long = 0
 
     fun load(onReady: (String) -> Unit) {
         val fresh = cached
-        if (fresh != null && System.currentTimeMillis() - cachedAt < 15 * 60 * 1000) {
+        if (fresh != null && System.currentTimeMillis() - cachedAt < 10 * 60 * 1000) {
             onReady(fresh)
             return
         }
         thread(name = "glove-news") {
-            val stories = mutableListOf<Story>()
-            stories += rss("https://news.google.com/rss?hl=ru&gl=RU&ceid=RU:ru", "Google Новости").take(4)
-            val dzen = rss("https://dzen.ru/news/rss", "Дзен").ifEmpty {
-                rss("https://news.yandex.ru/index.rss", "Дзен")
+            val stories = linkedMapOf<String, Story>()
+            feeds.forEach { address ->
+                rss(address).forEach { story ->
+                    val key = story.url.substringBefore("?").lowercase()
+                    val previous = stories[key]
+                    if (previous == null || story.time > previous.time) stories[key] = story
+                }
             }
-            stories += dzen.take(4)
-            stories += wikipedia().take(3)
-            stories += rss("https://lenta.ru/rss/news", "Лента").take(3)
-            val html = render(stories.distinctBy { it.title }.take(12))
+            val ordered = stories.values.sortedByDescending { it.time }
+            val html = render(ordered)
             cached = html
             cachedAt = System.currentTimeMillis()
             onReady(html)
@@ -37,46 +61,49 @@ object NewsFeed {
     }
 
     private fun render(stories: List<Story>): String {
-        if (stories.isEmpty()) return "<p class=\"note\">Новости сейчас недоступны.</p>"
+        if (stories.isEmpty()) return "<p class=\"note\">Новости Дзена сейчас недоступны.</p>"
         return stories.joinToString("") { story ->
             """<a class="story" href="${esc(story.url)}"><b>${esc(story.title)}</b><span>${esc(story.source)}</span></a>"""
         }
     }
 
-    private fun rss(url: String, source: String): List<Story> {
+    private fun rss(url: String): List<Story> {
         val xml = get(url) ?: return emptyList()
         val item = Regex("(?s)<item\\b[^>]*>(.*?)</item>")
         val title = Regex("(?s)<title[^>]*>(?:<!\\[CDATA\\[)?(.*?)(?:]]>)?</title>")
         val link = Regex("(?s)<link[^>]*>(?:<!\\[CDATA\\[)?(https?://[^<\\]]+)(?:]]>)?</link>")
+        val pub = Regex("(?s)<pubDate[^>]*>(.*?)</pubDate>")
+        var index = 0
         return item.findAll(xml).mapNotNull { match ->
             val block = match.groupValues[1]
             val headline = clean(title.find(block)?.groupValues?.get(1).orEmpty())
             val href = link.find(block)?.groupValues?.get(1)?.trim().orEmpty()
-            if (headline.isBlank() || !href.startsWith("http")) null else Story(headline, href, source)
-        }.take(6).toList()
+            if (headline.isBlank() || !href.startsWith("http")) return@mapNotNull null
+            val stamp = parseDate(pub.find(block)?.groupValues?.get(1).orEmpty())
+            val time = if (stamp > 0) stamp else System.currentTimeMillis() - index * 1000L
+            index++
+            Story(headline, href, "Дзен", time)
+        }.toList()
     }
 
-    private fun wikipedia(): List<Story> {
-        val day = SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date())
-        val raw = get("https://ru.wikipedia.org/api/rest_v1/feed/featured/$day") ?: return emptyList()
-        val news = try {
-            JSONObject(raw).optJSONArray("news")
-        } catch (_: Exception) {
-            null
-        } ?: return emptyList()
-        val out = mutableListOf<Story>()
-        for (i in 0 until news.length()) {
-            val item = news.optJSONObject(i) ?: continue
-            val links = item.optJSONArray("links") ?: continue
-            val link = links.optJSONObject(0) ?: continue
-            val title = link.optString("title").ifBlank { item.optString("story") }
-            val page = link.optJSONObject("content_urls")
-                ?.optJSONObject("desktop")
-                ?.optString("page")
-                .orEmpty()
-            if (title.isNotBlank() && page.startsWith("http")) out += Story(clean(title), page, "Википедия")
+    private fun parseDate(value: String): Long {
+        val raw = value.trim()
+        if (raw.isEmpty()) return 0L
+        val patterns = arrayOf(
+            "EEE, dd MMM yyyy HH:mm:ss Z",
+            "EEE, dd MMM yyyy HH:mm:ss z",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'"
+        )
+        for (pattern in patterns) {
+            try {
+                val format = SimpleDateFormat(pattern, Locale.US)
+                format.timeZone = TimeZone.getTimeZone("GMT")
+                return format.parse(raw)?.time ?: continue
+            } catch (_: Exception) {
+            }
         }
-        return out
+        return 0L
     }
 
     private fun get(url: String): String? = try {
@@ -84,8 +111,8 @@ object NewsFeed {
             instanceFollowRedirects = true
             connectTimeout = 12000
             readTimeout = 12000
-            setRequestProperty("User-Agent", "GloveBrowser/1.3")
-            setRequestProperty("Accept", "application/rss+xml, application/json, text/xml, */*")
+            setRequestProperty("User-Agent", "Mozilla/5.0 GloveBrowser/1.8.5")
+            setRequestProperty("Accept", "application/rss+xml, application/xml, text/xml, */*")
         }
         conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
     } catch (_: Exception) {

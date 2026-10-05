@@ -11,8 +11,8 @@ android {
         applicationId = "com.glove.browser"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.8.4"
+        versionCode = 14
+        versionName = "1.8.5"
     }
 
     signingConfigs {

@@ -162,12 +162,7 @@ class MainActivity : AppCompatActivity() {
         binding.mic.setOnClickListener { startVoice() }
         binding.camera.setOnClickListener { showImageSearch() }
         binding.action.setOnClickListener { onActionClick() }
-        binding.updateClose.setOnClickListener {
-            updateDismissed = true
-            binding.updateBar.visibility = View.GONE
-            (binding.suggestions.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin =
-                (57 * resources.displayMetrics.density).toInt()
-        }
+        /* update dialog handles dismissal */
         checkUpdate()
         binding.switcherBack.setOnClickListener { closeSwitcher() }
         binding.switcherMode.setOnClickListener {
@@ -1260,44 +1255,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkUpdate() {
-        thread {
-            val remote = listOf(
-                "https://glove.mineholde.pro/version.json",
-                "https://raw.githubusercontent.com/VMRcompany/glove-browser/main/docs/version.json"
-            ).firstNotNullOfOrNull { address ->
-                try {
-                    val conn = (java.net.URL(address).openConnection() as java.net.HttpURLConnection).apply {
-                        instanceFollowRedirects = true
-                        connectTimeout = 6000
-                        readTimeout = 6000
-                        setRequestProperty("User-Agent", "GloveBrowser/1.7")
-                    }
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    JSONObject(body).optString("version").ifBlank { null }
-                } catch (_: Exception) {
-                    null
-                }
-            } ?: return@thread
-            val local = packageManager.getPackageInfo(packageName, 0).versionName ?: return@thread
-            if (!newerVersion(remote, local)) return@thread
-            runOnUiThread {
-                if (updateDismissed) return@runOnUiThread
-                binding.updateBar.visibility = View.VISIBLE
-                (binding.suggestions.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin =
-                    (100 * resources.displayMetrics.density).toInt()
-            }
+        val local = packageManager.getPackageInfo(packageName, 0).versionName ?: return
+        AppUpdate.check(this, legacy = true, localVersion = local) {
+            updateDismissed = true
         }
-    }
-
-    private fun newerVersion(remote: String, local: String): Boolean {
-        val left = remote.split(".").map { it.toIntOrNull() ?: 0 }
-        val right = local.split(".").map { it.toIntOrNull() ?: 0 }
-        val count = maxOf(left.size, right.size)
-        for (i in 0 until count) {
-            val diff = (left.getOrElse(i) { 0 }) - (right.getOrElse(i) { 0 })
-            if (diff != 0) return diff > 0
-        }
-        return false
     }
 
     private fun showSuggestions(query: String) {
