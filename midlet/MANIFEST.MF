@@ -1,0 +1,8 @@
+MIDlet-Name: Glove Browser
+MIDlet-Version: 1.0.0
+MIDlet-Vendor: VMR Company
+MIDlet-Description: Glove Browser for Nokia / Java MIDP phones
+MIDlet-Info-URL: https://glove.mineholde.pro/
+MIDlet-1: Glove Browser, , com.glove.browser.GloveMidlet
+MicroEdition-Configuration: CLDC-1.1
+MicroEdition-Profile: MIDP-2.0
