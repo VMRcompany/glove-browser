@@ -14,6 +14,8 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 object NewsFeed {
+    data class Headline(val title: String, val url: String, val source: String)
+
     private data class Story(val title: String, val url: String, val source: String, val time: Long)
 
     private val dzenPages = listOf(
@@ -57,40 +59,57 @@ object NewsFeed {
             return
         }
         thread(name = "glove-news") {
-            val dzen = ConcurrentHashMap<String, Story>()
-            val lenta = ConcurrentHashMap<String, Story>()
-            val pool = Executors.newFixedThreadPool(16)
-            val rank = AtomicInteger(0)
-
-            dzenPages.forEach { address ->
-                pool.execute {
-                    scrapeDzen(address).forEach { story ->
-                        val key = story.url.substringBefore("?").lowercase()
-                        dzen.putIfAbsent(key, story.copy(time = System.currentTimeMillis() - rank.getAndIncrement() * 1000L))
-                    }
-                }
-            }
-            lentaFeeds.forEach { address ->
-                pool.execute {
-                    rss(address, "Lenta.ru").forEach { story ->
-                        val key = story.url.substringBefore("?").lowercase()
-                        val previous = lenta[key]
-                        if (previous == null || story.time > previous.time) lenta[key] = story
-                    }
-                }
-            }
-
-            pool.shutdown()
-            pool.awaitTermination(BUDGET_MS, TimeUnit.MILLISECONDS)
-            pool.shutdownNow()
-
-            val dzenList = dzen.values.sortedByDescending { it.time }
-            val lentaList = lenta.values.sortedByDescending { it.time }
-            val html = render(interleave(dzenList, lentaList))
+            val stories = fetchStories()
+            val html = render(stories)
             cached = html
             cachedAt = System.currentTimeMillis()
             onReady(html)
         }
+    }
+
+    fun loadHeadlines(limit: Int, onReady: (List<Headline>) -> Unit) {
+        thread(name = "glove-news-widget") {
+            val stories = fetchStories()
+            onReady(
+                stories.take(limit.coerceAtLeast(0)).map {
+                    Headline(it.title, it.url, it.source)
+                }
+            )
+        }
+    }
+
+    private fun fetchStories(): List<Story> {
+        val dzen = ConcurrentHashMap<String, Story>()
+        val lenta = ConcurrentHashMap<String, Story>()
+        val pool = Executors.newFixedThreadPool(16)
+        val rank = AtomicInteger(0)
+
+        dzenPages.forEach { address ->
+            pool.execute {
+                scrapeDzen(address).forEach { story ->
+                    val key = story.url.substringBefore("?").lowercase()
+                    dzen.putIfAbsent(key, story.copy(time = System.currentTimeMillis() - rank.getAndIncrement() * 1000L))
+                }
+            }
+        }
+        lentaFeeds.forEach { address ->
+            pool.execute {
+                rss(address, "Lenta.ru").forEach { story ->
+                    val key = story.url.substringBefore("?").lowercase()
+                    val previous = lenta[key]
+                    if (previous == null || story.time > previous.time) lenta[key] = story
+                }
+            }
+        }
+
+        pool.shutdown()
+        pool.awaitTermination(BUDGET_MS, TimeUnit.MILLISECONDS)
+        pool.shutdownNow()
+
+        return interleave(
+            dzen.values.sortedByDescending { it.time },
+            lenta.values.sortedByDescending { it.time }
+        )
     }
 
     private fun interleave(left: List<Story>, right: List<Story>): List<Story> {

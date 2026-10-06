@@ -50,8 +50,25 @@
     <string name="shortcut_incognito">Вкладка инкогнито</string>
     <string name="extensions">Дополнения</string>
     <string name="extensions_android">Эта сборка открывает страницы системным просмотрщиком. Установка дополнений есть в версии для Windows: папка или файл .crx в меню «Дополнения».</string>
-    <string name="widget_name">Glove</string>
+    <string name="widget_name">Glove — поиск</string>
     <string name="widget_label">Искать в Glove</string>
     <string name="widget_desc">Поиск и открытие Glove Browser</string>
     <string name="widget_pin_unsupported">Откройте список виджетов на рабочем столе и выберите Glove.</string>
+    <string name="widget_pick_title">Виджет на рабочий стол</string>
+    <string name="widget_weather_name">Glove — погода</string>
+    <string name="widget_weather_desc">Температура и условие рядом с вами, как на главной Glove</string>
+    <string name="widget_weather_loading">Обновляем погоду…</string>
+    <string name="widget_clock_name">Glove — часы</string>
+    <string name="widget_clock_desc">Крупные 3D-часы с датой</string>
+    <string name="widget_clock_hint">Glove Browser</string>
+    <string name="widget_news_name">Glove — новости</string>
+    <string name="widget_news_desc">Свежие заголовки Дзен и Lenta на рабочем столе</string>
+    <string name="widget_news_loading">Загружаем новости…</string>
+    <string name="widget_news_empty">Новости сейчас недоступны</string>
+    <string name="widget_quick_name">Glove — быстрый доступ</string>
+    <string name="widget_quick_desc">Яндекс, поиск, закладки и загрузки одним касанием</string>
+    <string name="widget_quick_yandex">Яндекс</string>
+    <string name="widget_quick_search">Поиск</string>
+    <string name="widget_quick_bookmarks">Закладки</string>
+    <string name="widget_quick_downloads">Загрузки</string>
 </resources>

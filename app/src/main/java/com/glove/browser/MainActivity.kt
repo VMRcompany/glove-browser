@@ -276,6 +276,24 @@ class MainActivity : AppCompatActivity() {
                 if (fresh || tabs.isEmpty()) openTab(false)
                 pinWidget()
             }
+            ACTION_WIDGET_TARGET -> {
+                if (fresh || tabs.isEmpty()) {
+                    if (!restoreSession()) openTab(false)
+                }
+                when (intent.getStringExtra(EXTRA_WIDGET_TARGET)) {
+                    TARGET_YANDEX -> navigate("https://ya.ru")
+                    TARGET_SEARCH -> {
+                        showHome(current())
+                        binding.address.requestFocus()
+                        binding.address.post {
+                            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+                            imm.showSoftInput(binding.address, InputMethodManager.SHOW_IMPLICIT)
+                        }
+                    }
+                    TARGET_BOOKMARKS -> openList(PagesActivity.MODE_BOOKMARKS)
+                    TARGET_DOWNLOADS -> openList(PagesActivity.MODE_DOWNLOADS)
+                }
+            }
             else -> {
                 if (fresh || tabs.isEmpty()) {
                     if (!restoreSession()) openTab(false)
@@ -335,13 +353,32 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.widget_pin_unsupported, Toast.LENGTH_LONG).show()
             return
         }
-        val success = PendingIntent.getActivity(
-            this,
-            2,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val labels = arrayOf(
+            getString(R.string.widget_weather_name),
+            getString(R.string.widget_clock_name),
+            getString(R.string.widget_news_name),
+            getString(R.string.widget_quick_name),
+            getString(R.string.widget_name)
         )
-        manager.requestPinAppWidget(ComponentName(this, GloveWidget::class.java), null, success)
+        val providers = arrayOf(
+            WeatherWidget::class.java,
+            ClockWidget::class.java,
+            NewsWidget::class.java,
+            QuickWidget::class.java,
+            GloveWidget::class.java
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.widget_pick_title)
+            .setItems(labels) { _, which ->
+                val success = PendingIntent.getActivity(
+                    this,
+                    2 + which,
+                    Intent(this, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                manager.requestPinAppWidget(ComponentName(this, providers[which]), null, success)
+            }
+            .show()
     }
 
     private fun goBack() {
@@ -1457,6 +1494,12 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_INCOGNITO = "com.glove.browser.action.INCOGNITO"
         const val ACTION_ABOUT = "com.glove.browser.action.ABOUT"
         const val ACTION_WIDGETS = "com.glove.browser.action.WIDGETS"
+        const val ACTION_WIDGET_TARGET = "com.glove.browser.action.WIDGET_TARGET"
+        const val EXTRA_WIDGET_TARGET = "widget_target"
+        const val TARGET_YANDEX = "yandex"
+        const val TARGET_SEARCH = "search"
+        const val TARGET_BOOKMARKS = "bookmarks"
+        const val TARGET_DOWNLOADS = "downloads"
         private const val HOME = "https://orion.glove/"
         private const val SCROLL_WATCH = """
             (function(){
