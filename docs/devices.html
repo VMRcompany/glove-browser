@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Устройства Glove Browser — Samsung GT и Nokia</title>
-  <meta name="description" content="Установка Glove Browser на Samsung GT (APK) и Nokia (JAR/JAD). Отдельное приложение, как Opera Mini. Пошаговая инструкция." />
+  <meta name="description" content="Установка Glove Browser на Samsung GT и Nokia через JAR/JAD — отдельное Java-приложение, как Opera Mini. APK эти телефоны не принимают." />
   <meta name="robots" content="index,follow" />
   <link rel="canonical" href="https://glove.mineholde.pro/devices.html" />
   <style>
@@ -40,62 +40,40 @@
   </header>
   <main>
     <h1>Установка на Samsung GT и Nokia</h1>
-    <p class="lead">Glove Browser ставится как отдельное приложение (не открывается внутри Opera Mini и не раздаётся ZIP с HTML).</p>
+    <p class="lead">Samsung GT и Nokia здесь — кнопочные Java-телефоны. Они <strong>не ставят APK</strong>. Нужны файлы установки Java-приложения: <strong>GloveBrowser.jad</strong> и <strong>GloveBrowser.jar</strong> — как у Opera Mini. После установки программа появляется в меню приложений.</p>
     <p>
-      <a class="btn" href="https://github.com/VMRcompany/glove-browser/releases/download/v1.8.7/GloveBrowser-Legacy.apk">Samsung GT — APK (Legacy)</a>
-      <a class="btn" href="midlet/GloveBrowser.jad">Nokia — GloveBrowser.jad</a>
-      <a class="btn ghost" href="midlet/GloveBrowser.jar">Nokia — GloveBrowser.jar</a>
+      <a class="btn" href="midlet/GloveBrowser.jad">Скачать GloveBrowser.jad</a>
+      <a class="btn ghost" href="midlet/GloveBrowser.jar">Скачать GloveBrowser.jar</a>
     </p>
-    <p class="meta">MIDlet 1.0.0 · JAR 10215 байт · MIDP 2.0 / CLDC 1.1 · класс <code>com.glove.browser.GloveMidlet</code><br>
-    Android Legacy 1.8.7 · пакет <code>com.glove.browser.legacy</code> · Android 4.0+</p>
+    <p class="meta">MIDlet 1.0.0 · JAR 10215 байт · MIDP 2.0 / CLDC 1.1 · <code>com.glove.browser.GloveMidlet</code><br>
+    Один и тот же установщик для Samsung GT и Nokia.</p>
 
-    <h2>Nokia (Series 40, Asha и Java MIDP) — как Opera Mini</h2>
-    <p>Нужны два файла установки: <strong>GloveBrowser.jad</strong> и <strong>GloveBrowser.jar</strong>. После установки иконка появляется в меню приложений телефона.</p>
+    <h2>Как установить (Samsung GT и Nokia одинаково)</h2>
     <h3>С ПК по USB / карте памяти</h3>
     <ol class="steps">
-      <li>Скачайте на компьютер оба файла: <a href="midlet/GloveBrowser.jad">GloveBrowser.jad</a> и <a href="midlet/GloveBrowser.jar">GloveBrowser.jar</a> (в одну папку).</li>
-      <li>Скопируйте оба файла в память телефона (корень карты, папка <code>Games</code> или <code>Installs</code>).</li>
-      <li>На телефоне откройте диспетчер файлов → найдите <code>GloveBrowser.jad</code> → Открыть / Установить.</li>
-      <li>Подтвердите установку Java-приложения. Телефон проверит размер JAR (10215 байт) по данным из JAD.</li>
-      <li>Запустите <strong>Glove Browser</strong> из меню приложений — это отдельная программа, не браузерная страница.</li>
+      <li>Скачайте оба файла в одну папку: <a href="midlet/GloveBrowser.jad">GloveBrowser.jad</a> и <a href="midlet/GloveBrowser.jar">GloveBrowser.jar</a>.</li>
+      <li>Скопируйте их в память телефона (корень карты, <code>Games</code>, <code>Applications</code> или <code>Installs</code>).</li>
+      <li>На телефоне откройте диспетчер файлов → <code>GloveBrowser.jad</code> → Открыть / Установить.</li>
+      <li>Подтвердите установку Java-приложения. Телефон сверит размер JAR (10215 байт) с полем в JAD.</li>
+      <li>Запустите <strong>Glove Browser</strong> из меню приложений — это отдельная программа, не страница в Opera Mini.</li>
     </ol>
     <h3>По Bluetooth</h3>
     <ol class="steps">
-      <li>Отправьте на Nokia файлы <code>GloveBrowser.jad</code> и <code>GloveBrowser.jar</code>.</li>
-      <li>В «Входящих» откройте <code>.jad</code> и подтвердите установку.</li>
-      <li>Если телефон спрашивает JAR — укажите уже принятый <code>GloveBrowser.jar</code> рядом.</li>
+      <li>Отправьте на телефон оба файла: <code>GloveBrowser.jad</code> и <code>GloveBrowser.jar</code>.</li>
+      <li>Во входящих откройте <code>.jad</code> и подтвердите установку.</li>
+      <li>Если телефон просит JAR — укажите уже принятый <code>GloveBrowser.jar</code> рядом.</li>
     </ol>
     <h3>По ссылке с телефона</h3>
-    <p class="note">Откройте на телефоне <a href="https://glove.mineholde.pro/midlet/GloveBrowser.jad">https://glove.mineholde.pro/midlet/GloveBrowser.jad</a> — система предложит установить приложение и скачает JAR с того же адреса.</p>
+    <p class="note">Откройте <a href="https://glove.mineholde.pro/midlet/GloveBrowser.jad">https://glove.mineholde.pro/midlet/GloveBrowser.jad</a> — телефон предложит установить приложение и скачает JAR сам. APK для этих моделей не используется.</p>
 
-    <h2>Samsung GT на Android — файл APK</h2>
-    <p>Для Samsung GT с Android (Galaxy и др.) ставится <strong>установочный APK</strong>, не JAR и не ZIP: <a href="https://github.com/VMRcompany/glove-browser/releases/download/v1.8.7/GloveBrowser-Legacy.apk">GloveBrowser-Legacy.apk</a> (версия 1.8.7, Android 4.0+).</p>
-    <ol class="steps">
-      <li>Скачайте <strong>GloveBrowser-Legacy.apk</strong> на телефон или скопируйте с ПК.</li>
-      <li>Разрешите установку из неизвестных источников (Настройки → Безопасность).</li>
-      <li>Откройте APK в «Мои файлы» и нажмите Установить.</li>
-      <li>Запустите Glove Browser как обычное приложение из списка программ.</li>
-    </ol>
-    <p class="note">Кнопочные Samsung GT с Java (не Android), например часть линейки GT-C / GT-E / GT-S на платформе Java, ставят те же <a href="midlet/GloveBrowser.jad">.jad/.jar</a>, что и Nokia.</p>
-
-    <h2>Samsung GT — модели (Android → APK Legacy)</h2>
-    <p>Galaxy и планшеты с кодом GT- на Android 4+: ставьте <strong>GloveBrowser-Legacy.apk</strong>.</p>
-    <div class="models">
-      <p>Samsung GT-I5500, Samsung GT-I5503, Samsung GT-I5510, Samsung GT-I5700, Samsung GT-I5800, Samsung GT-I5801, Samsung GT-I7500, Samsung GT-I8000, Samsung GT-I8150, Samsung GT-I8160, Samsung GT-I8190, Samsung GT-I8190N, Samsung GT-I8200, Samsung GT-I8250, Samsung GT-I8260, Samsung GT-I8262, Samsung GT-I8350, Samsung GT-I8530, Samsung GT-I8550, Samsung GT-I8552, Samsung GT-I8730, Samsung GT-I9000, Samsung GT-I9001, Samsung GT-I9003, Samsung GT-I9010, Samsung GT-I9070, Samsung GT-I9100, Samsung GT-I9100G, Samsung GT-I9103, Samsung GT-I9105, Samsung GT-I9105P, Samsung GT-I9118, Samsung GT-I9150, Samsung GT-I9152, Samsung GT-I9168, Samsung GT-I9190, Samsung GT-I9192, Samsung GT-I9195, Samsung GT-I9200, Samsung GT-I9205, Samsung GT-I9295, Samsung GT-I9300, Samsung GT-I9300I, Samsung GT-I9301, Samsung GT-I9305, Samsung GT-I9500, Samsung GT-I9505, Samsung GT-I9506, Samsung GT-I9515, Samsung GT-I9082, Samsung GT-I9080, Samsung GT-I9128, Samsung GT-I9220, Samsung GT-I9228, Samsung GT-I9250, Samsung GT-I9260, Samsung GT-I9268</p>
-      <p>Samsung GT-N7000, Samsung GT-N7100, Samsung GT-N7105, Samsung GT-N8000, Samsung GT-N8010, Samsung GT-N8020, Samsung GT-P1000, Samsung GT-P1010, Samsung GT-P3100, Samsung GT-P3110, Samsung GT-P5100, Samsung GT-P5110, Samsung GT-P5200, Samsung GT-P5210, Samsung GT-P6200, Samsung GT-P6210, Samsung GT-P6800, Samsung GT-P6810, Samsung GT-P7100, Samsung GT-P7300, Samsung GT-P7310, Samsung GT-P7500, Samsung GT-P7510</p>
-      <p>Samsung GT-S5300, Samsung GT-S5301, Samsung GT-S5302, Samsung GT-S5310, Samsung GT-S5312, Samsung GT-S5360, Samsung GT-S5363, Samsung GT-S5570, Samsung GT-S5570I, Samsung GT-S5660, Samsung GT-S5670, Samsung GT-S5690, Samsung GT-S5830, Samsung GT-S5830I, Samsung GT-S5830C, Samsung GT-S5839I, Samsung GT-S6102, Samsung GT-S6310, Samsung GT-S6312, Samsung GT-S6352, Samsung GT-S6500, Samsung GT-S6500D, Samsung GT-S6810, Samsung GT-S6812, Samsung GT-S7262, Samsung GT-S7270, Samsung GT-S7272, Samsung GT-S7275, Samsung GT-S7390, Samsung GT-S7392, Samsung GT-S7500, Samsung GT-S7560, Samsung GT-S7562, Samsung GT-S7572, Samsung GT-S7580, Samsung GT-S7582, Samsung GT-S7710, Samsung GT-S7898</p>
-    </div>
-
-    <h2>Samsung GT — модели (Java → JAR/JAD)</h2>
-    <p>Кнопочные и feature-phones Samsung на Java MIDP: ставьте <strong>GloveBrowser.jad</strong> + <strong>GloveBrowser.jar</strong>.</p>
+    <h2>Samsung GT — модели под JAR/JAD</h2>
     <div class="models">
       <p>Samsung GT-B2710, Samsung GT-B2710X, Samsung GT-B5722, Samsung GT-C3010, Samsung GT-C3011, Samsung GT-C3060, Samsung GT-C3110, Samsung GT-C3200, Samsung GT-C3212, Samsung GT-C3222, Samsung GT-C3300, Samsung GT-C3300K, Samsung GT-C3303, Samsung GT-C3310, Samsung GT-C3312, Samsung GT-C3322, Samsung GT-C3330, Samsung GT-C3332, Samsung GT-C3350, Samsung GT-C3500, Samsung GT-C3510, Samsung GT-C3520, Samsung GT-C3530, Samsung GT-C3560, Samsung GT-C3590, Samsung GT-C3592, Samsung GT-C3750, Samsung GT-C3752, Samsung GT-C3780, Samsung GT-C3782</p>
       <p>Samsung GT-E1080, Samsung GT-E1080T, Samsung GT-E1081, Samsung GT-E1085, Samsung GT-E1100, Samsung GT-E1105, Samsung GT-E1150, Samsung GT-E1170, Samsung GT-E1190, Samsung GT-E1195, Samsung GT-E1200, Samsung GT-E1205, Samsung GT-E1207, Samsung GT-E1210, Samsung GT-E1220, Samsung GT-E1225, Samsung GT-E1230, Samsung GT-E1232, Samsung GT-E1270, Samsung GT-E1280, Samsung GT-E2120, Samsung GT-E2121, Samsung GT-E2130, Samsung GT-E2152, Samsung GT-E2200, Samsung GT-E2202, Samsung GT-E2220, Samsung GT-E2222, Samsung GT-E2230, Samsung GT-E2232, Samsung GT-E2250, Samsung GT-E2252, Samsung GT-E2330, Samsung GT-E2350, Samsung GT-E2530, Samsung GT-E2600, Samsung GT-E2652</p>
       <p>Samsung GT-S5230, Samsung GT-S5233, Samsung GT-S5250, Samsung GT-S5260, Samsung GT-S3650, Samsung GT-S3850, Samsung GT-S5220, Samsung GT-S5222, Samsung GT-S5280, Samsung GT-S5282, Samsung GT-S5330, Samsung GT-S5350, Samsung GT-S5600, Samsung GT-S5603, Samsung GT-S5620, Samsung GT-S5630, Samsung GT-S5750, Samsung GT-S5780, Samsung GT-S7230, Samsung GT-S7250, Samsung GT-S8000, Samsung GT-S8300, Samsung GT-S8500, Samsung GT-S8530, Samsung GT-S8600, Samsung GT-S9110</p>
     </div>
 
-    <h2>Nokia — модели (JAR/JAD)</h2>
-    <p>Series 40, Asha и Java-совместимые Nokia: установка <strong>GloveBrowser.jad</strong> + <strong>GloveBrowser.jar</strong>.</p>
+    <h2>Nokia — модели под JAR/JAD</h2>
     <div class="models">
       <p>Nokia 1280, Nokia 1616, Nokia 1661, Nokia 1680 classic, Nokia 1800, Nokia 2220 slide, Nokia 2320 classic, Nokia 2323 classic, Nokia 2330 classic, Nokia 2600 classic, Nokia 2630, Nokia 2660, Nokia 2680 slide, Nokia 2690, Nokia 2700 classic, Nokia 2710 Navigation Edition, Nokia 2720 fold, Nokia 2730 classic, Nokia 2760</p>
       <p>Nokia 3110 classic, Nokia 3120 classic, Nokia 3500 classic, Nokia 3600 slide, Nokia 3710 fold, Nokia 3720 classic, Nokia 5000, Nokia 5070, Nokia 5130 XpressMusic, Nokia 5220 XpressMusic, Nokia 5230, Nokia 5233, Nokia 5235, Nokia 5250, Nokia 5310 XpressMusic, Nokia 5320 XpressMusic, Nokia 5330 XpressMusic, Nokia 5530 XpressMusic, Nokia 5630 XpressMusic, Nokia 5730 XpressMusic, Nokia 5800 XpressMusic</p>
@@ -109,10 +87,10 @@
     </div>
 
     <h2>Другие Java MIDP-телефоны</h2>
-    <p>Те же <code>.jad</code>/<code>.jar</code> обычно ставятся на Alcatel, LG, Sony Ericsson, Motorola с поддержкой Java MIDP 2.0.</p>
+    <p>Те же <code>.jad</code>/<code>.jar</code> обычно ставятся на Alcatel, LG, Sony Ericsson, Motorola с Java MIDP 2.0.</p>
   </main>
   <footer>
-    <a href="./">Glove Browser</a> · <a href="midlet/">Файлы MIDlet</a> · <a href="promo.html">Поделиться</a>
+    <a href="./">Glove Browser</a> · <a href="midlet/">Файлы установки</a> · <a href="promo.html">Поделиться</a>
   </footer>
 </body>
 </html>
