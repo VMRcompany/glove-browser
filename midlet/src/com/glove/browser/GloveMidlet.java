@@ -17,7 +17,7 @@ import javax.microedition.rms.RecordStoreException;
 
 /**
  * Installable Glove Browser MIDlet for Nokia Series 40 / Java MIDP phones.
- * Opens as its own application (like Opera Mini), not inside another browser.
+ * Opens as its own application, not inside another browser.
  */
 public class GloveMidlet extends MIDlet implements CommandListener, Runnable {
 
