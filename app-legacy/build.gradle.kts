@@ -12,8 +12,8 @@ android {
         applicationId = "com.glove.browser.legacy"
         minSdk = 14
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.8.6-legacy"
+        versionCode = 16
+        versionName = "1.8.7-legacy"
         multiDexEnabled = true
     }
 

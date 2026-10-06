@@ -5,7 +5,7 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.6";
+const APP_VERSION = "1.8.7";
 const IS_LEGACY_WIN = process.arch === "ia32";
 
 function themeFile() {
@@ -91,7 +91,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.6";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.7";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -267,7 +267,7 @@ let updateInfo = null;
 
 function readJson(url) {
   return new Promise((resolve) => {
-    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6", Accept: "application/vnd.github+json, application/json" } }, (response) => {
+    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.7", Accept: "application/vnd.github+json, application/json" } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
         readJson(response.headers.location).then(resolve);
@@ -327,7 +327,7 @@ function downloadUpdate(parent, info) {
   const dest = path.join(app.getPath("temp"), info.name || "GloveBrowser-Setup.exe");
   const file = fs.createWriteStream(dest);
   const follow = (url) => {
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6", Accept: "application/octet-stream" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.7", Accept: "application/octet-stream" } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
         follow(response.headers.location);
@@ -1355,7 +1355,7 @@ ipcMain.handle("suggest-page", async (event, text) => {
   if (!q) return [];
   return await new Promise((resolve) => {
     const url = "https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5";
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.7" } }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => {
