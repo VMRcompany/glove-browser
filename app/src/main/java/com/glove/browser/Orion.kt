@@ -135,8 +135,9 @@ object Orion {
           <title>${escape(title)}</title>
           <style>
             * { box-sizing: border-box; }
-            body { margin: 0; background: #fff; color: #202124; font-family: Roboto, "Segoe UI", sans-serif; }
-            .ntp { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; }
+            html, body { margin: 0; overflow-x: hidden; max-width: 100%; }
+            body { background: #fff; color: #202124; font-family: Roboto, "Segoe UI", sans-serif; }
+            .ntp { min-height: 100vh; width: 100%; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; overflow-x: hidden; }
             .hero { width: min(584px, 100%); display: flex; flex-direction: column; align-items: center; }
             .mark { width: 88px; height: 88px; border-radius: 22px; margin-bottom: 12px; }
             .logo { font-size: 40px; font-weight: 500; letter-spacing: -1px; margin-bottom: 14px; }
@@ -192,11 +193,12 @@ object Orion {
             .hit span { color: #006621; font-size: 13px; word-break: break-all; }
             .hit em { color: #4d5156; font-style: normal; font-size: 14px; line-height: 1.35; }
             .note { color: #4d5156; }
-            .news { width: min(640px, 100%); margin-top: auto; padding-top: 36px; }
+            .news { width: min(640px, 100%); max-width: 100%; margin-top: auto; padding-top: 36px; box-sizing: border-box; overflow-wrap: anywhere; }
             .news h2 { margin: 0 0 4px; font-size: 16px; font-weight: 500; }
-            .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; }
-            .story b { display: block; font-weight: 500; line-height: 1.35; }
-            .story span { display: block; margin-top: 3px; color: #234230; font-size: 12px; }
+            #news { max-height: none; max-width: 100%; overflow-x: hidden; }
+            .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; max-width: 100%; overflow: hidden; box-sizing: border-box; }
+            .story b { display: block; font-weight: 500; line-height: 1.35; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+            .story span { display: block; margin-top: 3px; color: #234230; font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
             html.night, html.night body { background: #202124; color: #e8eaed; }
             html.night input, html.night .searchline .engine, html.night .picker { background: #303134; color: #e8eaed; border-color: #3c4043; }
             html.night .choice, html.night .tile, html.night .story { color: #e8eaed; }

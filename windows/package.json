@@ -1,7 +1,7 @@
 {
   "name": "glove-browser",
   "productName": "Glove Browser",
-  "version": "1.8.5",
+  "version": "1.8.6",
   "description": "Glove Browser",
   "author": "Glove Browser",
   "main": "main.js",

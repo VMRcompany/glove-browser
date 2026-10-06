@@ -5,7 +5,7 @@ const vault = require("./vault");
 const voice = require("./voice");
 const permissions = require("./permissions");
 const weather = require("./weather");
-const APP_VERSION = "1.8.5";
+const APP_VERSION = "1.8.6";
 const IS_LEGACY_WIN = process.arch === "ia32";
 
 function themeFile() {
@@ -34,6 +34,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const https = require("https");
+const http = require("http");
 
 const logoData = "data:image/png;base64," + fs.readFileSync(path.join(__dirname, "logo.png")).toString("base64");
 
@@ -90,7 +91,7 @@ function searchUrl(query) {
   return currentEngine().template.replace("{q}", encodeURIComponent(query));
 }
 
-app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.5";
+app.userAgentFallback = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.5359.215 Safari/537.36 GloveBrowser/1.8.6";
 
 const windows = new Set();
 let tabSeq = 1;
@@ -173,16 +174,17 @@ function escapeHtml(value) {
 function page(title, body) {
   return `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>
   <style>
-    body { margin: 0; font-family: "Segoe UI", sans-serif; color: #202124; background: #fff; }
-    .ntp { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; }
+    body { margin: 0; font-family: "Segoe UI", sans-serif; color: #202124; background: #fff; overflow-x: hidden; max-width: 100%; }
+    .ntp { min-height: 100vh; width: 100%; max-width: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; padding: 8vh 16px 24px; overflow-x: hidden; }
     .logo { font-size: 48px; font-weight: 500; letter-spacing: -1px; margin: 8px 0 14px; }
     ${weather.css()}
     .mark { width: 88px; height: 88px; border-radius: 22px; }
-    .news { width: min(640px, 100%); margin-top: auto; padding-top: 36px; }
+    .news { width: min(640px, 100%); max-width: 100%; margin-top: auto; padding-top: 36px; box-sizing: border-box; overflow-wrap: anywhere; }
     .news h2 { font-size: 16px; font-weight: 500; }
-    .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; }
-    .story b { display: block; }
-    .story span { color: #234230; font-size: 12px; }
+    #news { max-width: 100%; overflow-x: hidden; }
+    .story { display: block; text-decoration: none; color: #202124; padding: 12px 0; border-top: 1px solid #eceff1; max-width: 100%; overflow: hidden; box-sizing: border-box; }
+    .story b { display: block; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+    .story span { color: #234230; font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
     form input { width: min(560px, 86vw); height: 44px; border: 1px solid #dfe1e5; border-radius: 22px; padding: 0 18px; font-size: 16px; outline: none; }
     form input:focus { box-shadow: 0 1px 6px rgba(32,33,36,.28); }
     .serp { max-width: 720px; margin: 24px auto; padding: 0 16px; }
@@ -265,7 +267,7 @@ let updateInfo = null;
 
 function readJson(url) {
   return new Promise((resolve) => {
-    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5", Accept: "application/vnd.github+json, application/json" } }, (response) => {
+    const request = https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6", Accept: "application/vnd.github+json, application/json" } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
         readJson(response.headers.location).then(resolve);
@@ -325,7 +327,7 @@ function downloadUpdate(parent, info) {
   const dest = path.join(app.getPath("temp"), info.name || "GloveBrowser-Setup.exe");
   const file = fs.createWriteStream(dest);
   const follow = (url) => {
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5", Accept: "application/octet-stream" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6", Accept: "application/octet-stream" } }, (response) => {
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
         follow(response.headers.location);
@@ -545,18 +547,110 @@ function introHtml() {
 }
 
 let newsCache = { at: 0, html: "" };
+let dzenCookie = "zen_sso_checked=1; zen_vk_sso_checked=1";
+const NEWS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 function plain(value) {
-  return String(value || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/\s+/g, " ").trim();
+  return String(value || "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function fetchNews(url, { method = "GET", body, cookie, timeout = 5500, referer } = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const lib = u.protocol === "http:" ? http : https;
+    const headers = {
+      "User-Agent": NEWS_UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,application/rss+xml,*/*;q=0.8",
+      "Accept-Language": "ru-RU,ru;q=0.9"
+    };
+    if (cookie) headers.Cookie = cookie;
+    if (referer) headers.Referer = referer;
+    if (body) {
+      headers["Content-Type"] = "application/x-www-form-urlencoded";
+      headers["Content-Length"] = Buffer.byteLength(body);
+    }
+    const req = lib.request({
+      protocol: u.protocol,
+      hostname: u.hostname,
+      port: u.port || (u.protocol === "https:" ? 443 : 80),
+      path: u.pathname + u.search,
+      method,
+      headers,
+      timeout
+    }, (response) => {
+      const setCookie = response.headers["set-cookie"] || [];
+      for (const raw of setCookie) {
+        const pair = String(raw).split(";")[0];
+        const name = pair.split("=")[0];
+        const parts = dzenCookie.split(/;\s*/).filter((p) => p && !p.startsWith(name + "="));
+        parts.push(pair);
+        dzenCookie = parts.join("; ");
+      }
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        fetchNews(new URL(response.headers.location, url).href, { cookie: dzenCookie, timeout, referer })
+          .then(resolve, reject);
+        response.resume();
+        return;
+      }
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+function needsSso(html) {
+  return html.length < 8000 && (html.includes("element2.value") || html.includes("sso.dzen.ru/install"));
+}
+
+async function unlockDzen(challenge) {
+  const host = ((challenge.match(/host":"([^"]+)"/) || [])[1] || "").replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+  const retpath = ((challenge.match(/retpath":"([^"]+)"/) || [])[1] || "https://dzen.ru/news").replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+  const container = ((challenge.match(/element2\.value = '([^']+)'/) || [])[1] || "");
+  if (!host || !container) return;
+  const body = `retpath=${encodeURIComponent(retpath)}&container=${encodeURIComponent(container)}&dzen=1`;
+  try {
+    await fetchNews(host, { method: "POST", body, cookie: dzenCookie, timeout: 5000, referer: "https://dzen.ru/news" });
+  } catch { /* keep going with whatever cookies we have */ }
+}
+
+async function scrapeDzen(url) {
+  try {
+    let html = await fetchNews(url, { cookie: dzenCookie, timeout: 5500 });
+    if (needsSso(html)) {
+      await unlockDzen(html);
+      html = await fetchNews(url, { cookie: dzenCookie, timeout: 5500 });
+      if (needsSso(html)) return [];
+    }
+    const out = new Map();
+    for (const match of html.matchAll(/<a[^>]+href="(https:\/\/dzen\.ru\/news\/story\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)) {
+      const href = match[1].replace(/&amp;/g, "&").split("?")[0].trim();
+      const title = plain(match[2]);
+      if (title.length < 12) continue;
+      if (title.includes("Насколько вы") || title.includes("Расскажите") || title.startsWith("Спасибо")) continue;
+      const key = href.toLowerCase();
+      if (!out.has(key)) out.set(key, { title, url: href, source: "Дзен", time: 0 });
+    }
+    return [...out.values()];
+  } catch {
+    return [];
+  }
 }
 
 async function rssStories(url, source) {
   try {
-    const xml = await fetchText(url);
+    const xml = await fetchNews(url, { timeout: 5500 });
     return [...xml.matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/gi)].map((match, index) => {
       const block = match[1];
       const title = plain((block.match(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i) || [])[1]);
-      const href = ((block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<\]]+)/i) || [])[1] || "").trim();
+      const href = (
+        ((block.match(/<link[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<\]]+)/i) || [])[1] || "") ||
+        ((block.match(/<guid[^>]*>(?:<!\[CDATA\[)?(https?:\/\/[^<\]]+)/i) || [])[1] || "")
+      ).trim();
       const pub = plain((block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i) || [])[1]);
       const time = Date.parse(pub) || (Date.now() - index * 1000);
       return title && href ? { title, url: href, source, time } : null;
@@ -566,41 +660,66 @@ async function rssStories(url, source) {
   }
 }
 
+function interleaveNews(left, right) {
+  const out = [];
+  let i = 0;
+  let j = 0;
+  while (i < left.length || j < right.length) {
+    if (i < left.length) out.push(left[i++]);
+    if (j < right.length) out.push(right[j++]);
+  }
+  return out;
+}
+
 async function loadNews() {
-  if (newsCache.html && Date.now() - newsCache.at < 10 * 60 * 1000) return newsCache.html;
-  const feeds = [
-    "https://dzen.ru/news/rss",
-    "https://news.yandex.ru/index.rss",
-    "https://news.yandex.ru/politics.rss",
-    "https://news.yandex.ru/society.rss",
-    "https://news.yandex.ru/business.rss",
-    "https://news.yandex.ru/world.rss",
-    "https://news.yandex.ru/sports.rss",
-    "https://news.yandex.ru/incident.rss",
-    "https://news.yandex.ru/computers.rss",
-    "https://news.yandex.ru/science.rss",
-    "https://news.yandex.ru/culture.rss",
-    "https://news.yandex.ru/auto.rss",
-    "https://news.yandex.ru/ecology.rss",
-    "https://news.yandex.ru/travels.rss",
-    "https://news.yandex.ru/showbusiness.rss",
-    "https://news.yandex.ru/gadgets.rss",
-    "https://news.yandex.ru/games.rss",
-    "https://news.yandex.ru/army.rss",
-    "https://news.yandex.ru/energy.rss",
-    "https://news.yandex.ru/finances.rss"
+  if (newsCache.html && Date.now() - newsCache.at < 5 * 60 * 1000) return newsCache.html;
+  const dzenPages = [
+    "https://dzen.ru/news",
+    "https://dzen.ru/news/rubric/politics",
+    "https://dzen.ru/news/rubric/society",
+    "https://dzen.ru/news/rubric/business",
+    "https://dzen.ru/news/rubric/world",
+    "https://dzen.ru/news/rubric/sports",
+    "https://dzen.ru/news/rubric/incident",
+    "https://dzen.ru/news/rubric/computers",
+    "https://dzen.ru/news/rubric/science",
+    "https://dzen.ru/news/rubric/culture",
+    "https://dzen.ru/news/rubric/auto",
+    "https://dzen.ru/news/rubric/army"
   ];
-  const batches = await Promise.all(feeds.map((url) => rssStories(url, "Дзен")));
-  const map = new Map();
-  batches.flat().forEach((story) => {
-    const key = String(story.url).split("?")[0].toLowerCase();
-    const prev = map.get(key);
-    if (!prev || story.time > prev.time) map.set(key, story);
-  });
-  const stories = [...map.values()].sort((a, b) => b.time - a.time);
+  const lentaFeeds = [
+    "https://lenta.ru/rss",
+    "https://lenta.ru/rss/articles",
+    "https://lenta.ru/rss/news/russia",
+    "https://lenta.ru/rss/news/world",
+    "https://lenta.ru/rss/news/science",
+    "https://lenta.ru/rss/news/forces",
+    "https://lenta.ru/rss/news/sport"
+  ];
+  const stories = await (async () => {
+    const [dzenBatches, lentaBatches] = await Promise.all([
+      Promise.all(dzenPages.map((url) => scrapeDzen(url))),
+      Promise.all(lentaFeeds.map((url) => rssStories(url, "Lenta.ru")))
+    ]);
+    const dzenMap = new Map();
+    let rank = 0;
+    dzenBatches.flat().forEach((story) => {
+      const key = String(story.url).split("?")[0].toLowerCase();
+      if (!dzenMap.has(key)) dzenMap.set(key, { ...story, time: Date.now() - rank++ * 1000 });
+    });
+    const lentaMap = new Map();
+    lentaBatches.flat().forEach((story) => {
+      const key = String(story.url).split("?")[0].toLowerCase();
+      const prev = lentaMap.get(key);
+      if (!prev || story.time > prev.time) lentaMap.set(key, story);
+    });
+    const dzenList = [...dzenMap.values()].sort((a, b) => b.time - a.time);
+    const lentaList = [...lentaMap.values()].sort((a, b) => b.time - a.time);
+    return interleaveNews(dzenList, lentaList);
+  })().catch(() => []);
   const html = stories.length
     ? stories.map((story) => `<a class="story" href="${escapeHtml(story.url)}"><b>${escapeHtml(story.title)}</b><span>${escapeHtml(story.source)}</span></a>`).join("")
-    : `<p class="note">Новости Дзена сейчас недоступны.</p>`;
+    : `<p class="note">Новости сейчас недоступны.</p>`;
   newsCache = { at: Date.now(), html };
   return html;
 }
@@ -1236,7 +1355,7 @@ ipcMain.handle("suggest-page", async (event, text) => {
   if (!q) return [];
   return await new Promise((resolve) => {
     const url = "https://suggest.yandex.ru/suggest-ff.cgi?part=" + encodeURIComponent(q) + "&uil=ru&v=4&sn=5";
-    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.5" } }, (response) => {
+    https.get(url, { headers: { "User-Agent": "GloveBrowser/1.8.6" } }, (response) => {
       const chunks = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => {
