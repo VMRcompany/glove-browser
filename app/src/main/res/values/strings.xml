@@ -28,7 +28,14 @@
     <string name="open_new">Открыть в новой вкладке</string>
     <string name="download">Скачать</string>
     <string name="intro_title">Добро пожаловать</string>
-    <string name="intro_body">Строка сверху открывает адрес или поиск. Кнопка слева от неё выбирает поисковую систему. Квадрат рядом показывает вкладки, три точки — закладки, историю и загрузки.</string>
+    <string name="intro_body">Строка сверху открывает адрес или поиск. Кнопка слева выбирает поисковик. Квадрат — вкладки, три точки — закладки, история и загрузки.</string>
+    <string name="intro_widgets_title">Виджеты на рабочий стол</string>
+    <string name="intro_widgets_hint">Листайте превью и добавьте погоду, часы, новости или быстрый доступ</string>
+    <string name="intro_add_weather">Добавить погоду</string>
+    <string name="intro_add_clock">Добавить часы</string>
+    <string name="intro_add_news">Добавить новости</string>
+    <string name="intro_add_quick">Добавить доступ</string>
+    <string name="intro_add_widgets">Выбрать виджет…</string>
     <string name="intro_default">Сделать браузером по умолчанию</string>
     <string name="intro_start">Начать</string>
     <string name="duplicate">Дублировать вкладку</string>

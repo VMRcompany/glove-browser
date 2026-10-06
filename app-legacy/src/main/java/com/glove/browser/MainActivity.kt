@@ -349,10 +349,14 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    private fun pinWidget() {
+    private fun pinWidget(provider: Class<*>? = null) {
         val manager = AppWidgetManager.getInstance(this)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !manager.isRequestPinAppWidgetSupported) {
             Toast.makeText(this, R.string.widget_pin_unsupported, Toast.LENGTH_LONG).show()
+            return
+        }
+        if (provider != null) {
+            requestPinWidget(manager, provider)
             return
         }
         val labels = arrayOf(
@@ -369,20 +373,24 @@ class MainActivity : AppCompatActivity() {
             QuickWidget::class.java,
             GloveWidget::class.java
         )
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
         AlertDialog.Builder(this)
             .setTitle(R.string.widget_pick_title)
             .setItems(labels) { _, which ->
-                val success = PendingIntent.getActivity(
-                    this,
-                    2 + which,
-                    Intent(this, MainActivity::class.java),
-                    flags
-                )
-                manager.requestPinAppWidget(ComponentName(this, providers[which]), null, success)
+                requestPinWidget(manager, providers[which])
             }
             .show()
+    }
+
+    private fun requestPinWidget(manager: AppWidgetManager, provider: Class<*>) {
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
+        val success = PendingIntent.getActivity(
+            this,
+            provider.name.hashCode() and 0xffff,
+            Intent(this, MainActivity::class.java),
+            flags
+        )
+        manager.requestPinAppWidget(ComponentName(this, provider), null, success)
     }
 
     private fun goBack() {
@@ -1039,6 +1047,11 @@ class MainActivity : AppCompatActivity() {
         binding.intro.animate().alpha(1f).setDuration(220).start()
         binding.introStart.setOnClickListener { finishIntro() }
         binding.introDefault.setOnClickListener { requestDefaultBrowser() }
+        binding.introAddWeather.setOnClickListener { pinWidget(WeatherWidget::class.java) }
+        binding.introAddClock.setOnClickListener { pinWidget(ClockWidget::class.java) }
+        binding.introAddNews.setOnClickListener { pinWidget(NewsWidget::class.java) }
+        binding.introAddQuick.setOnClickListener { pinWidget(QuickWidget::class.java) }
+        binding.introAddAll.setOnClickListener { pinWidget(null) }
         binding.intro.post { requestDefaultBrowser() }
     }
 
