@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
 Sitemap: https://glove.mineholde.pro/sitemap.xml
+Sitemap: https://glove-dop.mineholde.pro/sitemap.xml

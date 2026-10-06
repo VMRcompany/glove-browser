@@ -16,7 +16,8 @@
   <meta property="og:image" content="https://glove.mineholde.pro/logo.png" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="Glove Browser" />
-  <meta name="twitter:description" content="Бесплатный браузер для новых и старых устройств" />
+  <meta name="theme-color" content="#234230" />
+  <link rel="sitemap" type="application/xml" href="https://glove.mineholde.pro/sitemap.xml" />
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Glove Browser","applicationCategory":"BrowserApplication","operatingSystem":"Android, Windows","offers":{"@type":"Offer","price":"0","priceCurrency":"RUB"},"url":"https://glove.mineholde.pro/","downloadUrl":"https://github.com/VMRcompany/glove-browser/releases/latest","description":"Бесплатный браузер с поиском Яндекс, вкладками и версиями для старых устройств"}
   </script>
@@ -28,10 +29,12 @@
     .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; color: var(--ink); }
     .brand img, .hero img { border-radius: 18px; }
     .menu-btn {
-      display: none; width: 44px; height: 44px; border: 1px solid #dadce0; background: #fff;
-      padding: 10px; cursor: pointer; border-radius: 10px;
+      display: none; width: 44px; height: 44px; border: 2px solid #202124; background: #fff;
+      padding: 0; cursor: pointer; border-radius: 10px; color: #202124;
+      align-items: center; justify-content: center;
     }
-    .menu-btn span { display: block; height: 2px; margin: 5px 0; background: #202124 !important; border-radius: 1px; }
+    .menu-btn svg { width: 22px; height: 22px; display: block; fill: #202124; stroke: #202124; }
+    .menu-btn span { display: none; }
     nav a { color: var(--ink); text-decoration: none; margin-left: 20px; }
     .hero { max-width: 880px; margin: 0 auto; padding: 64px 24px 28px; }
     h1 { font-size: 52px; line-height: 1.05; font-weight: 500; letter-spacing: -1.4px; margin: 18px 0 16px; }
@@ -89,7 +92,7 @@
 <body>
   <header>
     <button class="menu-btn" id="menuBtn" type="button" aria-label="Меню" aria-expanded="false" aria-controls="siteNav">
-      <span></span><span></span><span></span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2.2H3V6zm0 4.9h18v2.2H3v-2.2zm0 4.9h18V18H3v-2.2z"/></svg>
     </button>
     <div class="brand"><img src="logo.png" width="36" height="36" alt="">Glove Browser</div>
     <nav id="siteNav">

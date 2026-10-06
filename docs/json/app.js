@@ -1,8 +1,14 @@
 (function () {
   var cfg = {
-    yandex: "https://yandex.ru/search/?text=",
-    yandexHttp: "http://www.yandex.ru/yandsearch?text=",
-    readers: ["https://r.jina.ai/", "https://api.allorigins.win/raw?url="],
+    yandex: "https://yandex.ru/search/touch/?text=",
+    yandexLite: "https://yandex.ru/search/?text=",
+    yandexHttp: "http://m.yandex.ru/search?text=",
+    readers: [
+      "https://r.jina.ai/",
+      "https://api.allorigins.win/raw?url=",
+      "https://corsproxy.io/?",
+      "https://api.codetabs.com/v1/proxy?quest="
+    ],
     proxy: true
   };
   var q = document.getElementById("q");
@@ -12,6 +18,7 @@
   var proxyState = document.getElementById("proxyState");
   var body = document.body;
   var historyStack = [];
+  var readerIndex = 0;
 
   function isTouch() {
     try {
@@ -30,6 +37,8 @@
     var saved = null;
     try { saved = localStorage.getItem("glove-json-mode"); } catch (e) {}
     if (saved === "touch" || saved === "keypad") return saved;
+    var ua = String(navigator.userAgent || "").toLowerCase();
+    if (/nokia|series40|s40|asha|symbian|feature/.test(ua)) return "keypad";
     return isTouch() ? "touch" : "keypad";
   }
 
@@ -53,9 +62,13 @@
     return cfg.yandex + encodeURIComponent(text);
   }
 
-  function proxyUrl(url) {
-    // jina reader accepts full URL after prefix and modern TLS on server side
-    return cfg.readers[0] + url;
+  function buildProxy(url, index) {
+    var i = index || 0;
+    var prefix = cfg.readers[i] || cfg.readers[0];
+    if (prefix.indexOf("allorigins") >= 0 || prefix.indexOf("codetabs") >= 0 || prefix.indexOf("corsproxy") >= 0) {
+      return prefix + encodeURIComponent(url);
+    }
+    return prefix + url;
   }
 
   function setPanelHtml(html, baseUrl) {
@@ -97,54 +110,58 @@
     s = s.replace(/<script[\s\S]*?<\/script>/gi, "");
     s = s.replace(/<style[\s\S]*?<\/style>/gi, "");
     s = s.replace(/<noscript[\s\S]*?<\/noscript>/gi, "");
+    s = s.replace(/<iframe[\s\S]*?<\/iframe>/gi, "");
     s = s.replace(/on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-    if (s.length > 200000) s = s.slice(0, 200000) + "\n<p>…обрезано для старого телефона…</p>";
+    s = s.replace(/<img[^>]*>/gi, "");
+    if (s.length > 180000) s = s.slice(0, 180000) + "\n<p>…обрезано для старого телефона…</p>";
     return s;
   }
 
   function xhrGet(url, ok, fail) {
     var x = new XMLHttpRequest();
     x.open("GET", url, true);
+    x.timeout = 20000;
     x.onreadystatechange = function () {
       if (x.readyState !== 4) return;
       if (x.status >= 200 && x.status < 400) ok(x.responseText || "");
       else if (fail) fail(x.status);
     };
+    x.ontimeout = function () { if (fail) fail(0); };
     try { x.send(null); } catch (e) { if (fail) fail(0); }
   }
 
   function openInIframe(url) {
-    panel.hidden = true;
-    try {
-      view.src = url;
-    } catch (e) {
-      location.href = url;
+    try { view.src = url; } catch (e) { location.href = url; }
+  }
+
+  function tryReaders(url, index) {
+    if (index >= cfg.readers.length) {
+      // last resort: navigate browser itself (Opera Mini handles TLS on servers)
+      setPanelHtml(
+        "<p>Прокси недоступен. Открываю напрямую / через браузер телефона.</p>" +
+        "<p><a href='" + url + "'>" + url + "</a></p>" +
+        "<p><a href='" + cfg.yandexHttp + encodeURIComponent(url) + "'>Искать в Яндексе</a></p>",
+        url
+      );
+      try { location.href = url; } catch (e) {}
+      return;
     }
+    var reader = buildProxy(url, index);
+    setPanelHtml("<p>Загрузка через прокси " + (index + 1) + "/" + cfg.readers.length + "…</p>", url);
+    xhrGet(reader, function (text) {
+      historyStack.push(url);
+      readerIndex = index;
+      var clean = simplify(text);
+      setPanelHtml(clean, url);
+      if (body.className.indexOf("touch") >= 0) openInIframe(reader);
+    }, function () {
+      tryReaders(url, index + 1);
+    });
   }
 
   function openViaProxy(url) {
-    setPanelHtml("<p>Загрузка через прокси…</p>", url);
-    var reader = proxyUrl(url);
-    xhrGet(reader, function (text) {
-      historyStack.push(url);
-      if (body.className.indexOf("keypad") >= 0) {
-        setPanelHtml(simplify(text), url);
-      } else {
-        // touch: try iframe to reader first, fallback panel
-        openInIframe(reader);
-        setPanelHtml(simplify(text), url);
-      }
-    }, function () {
-      // fallback allorigins
-      var alt = cfg.readers[1] + encodeURIComponent(url);
-      xhrGet(alt, function (text) {
-        historyStack.push(url);
-        setPanelHtml(simplify(text), url);
-        if (body.className.indexOf("touch") >= 0) openInIframe(alt);
-      }, function () {
-        setPanelHtml("<p>Не удалось открыть. Попробуйте Яндекс или другой адрес.</p><p><a href='" + url + "'>" + url + "</a></p>", url);
-      });
-    });
+    panel.hidden = false;
+    tryReaders(url, readerIndex);
   }
 
   function openTarget(raw) {
@@ -153,7 +170,10 @@
     var url = looksUrl(text) ? normalize(text) : searchUrl(text);
     q.value = looksUrl(text) ? url : text;
     if (cfg.proxy) openViaProxy(url);
-    else openInIframe(url);
+    else {
+      panel.hidden = true;
+      openInIframe(url);
+    }
   }
 
   document.getElementById("go").onsubmit = function (e) {
@@ -165,6 +185,8 @@
   document.getElementById("skL").onclick = function () {
     menu.hidden = !menu.hidden;
   };
+  var btnMenu = document.getElementById("btnMenu");
+  if (btnMenu) btnMenu.onclick = function () { menu.hidden = !menu.hidden; };
   document.getElementById("skC").onclick = function () {
     openTarget(q.value || "https://yandex.ru/");
   };
@@ -201,6 +223,5 @@
     if (code === 39) { document.getElementById("skC").onclick(); return false; }
   };
 
-  // boot: yandex home without weather widgets of main app
   openTarget("https://yandex.ru/");
 })();

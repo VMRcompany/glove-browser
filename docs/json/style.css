@@ -1,9 +1,11 @@
 html, body { margin: 0; padding: 0; height: 100%; background: #fff; color: #111; font-family: Arial, Helvetica, sans-serif; font-size: 16px; }
 * { box-sizing: border-box; }
 #chrome { position: relative; z-index: 5; background: #f3f3f3; border-bottom: 1px solid #bbb; }
-#go { display: block; padding: 6px; }
-#q { width: 72%; height: 36px; border: 2px solid #234230; padding: 0 8px; font-size: 16px; vertical-align: middle; }
-#btnGo { width: 24%; height: 36px; border: 0; background: #234230; color: #fff; font-weight: bold; font-size: 16px; vertical-align: middle; }
+#go { display: block; padding: 6px; white-space: nowrap; }
+#btnMenu { width: 12%; height: 36px; border: 2px solid #234230; background: #fff; color: #234230; font-size: 22px; font-weight: bold; vertical-align: middle; padding: 0; }
+#q { width: 60%; height: 36px; border: 2px solid #234230; padding: 0 8px; font-size: 16px; vertical-align: middle; }
+#btnGo { width: 22%; height: 36px; border: 0; background: #234230; color: #fff; font-weight: bold; font-size: 16px; vertical-align: middle; }
+body.mode-keypad #btnMenu { display: none; }
 #view { display: block; width: 100%; height: 70%; border: 0; background: #fff; }
 #panel { padding: 10px; line-height: 1.45; word-wrap: break-word; overflow-wrap: anywhere; max-width: 100%; }
 #panel a { color: #0645ad; }
