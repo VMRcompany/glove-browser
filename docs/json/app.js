@@ -136,7 +136,7 @@
 
   function tryReaders(url, index) {
     if (index >= cfg.readers.length) {
-      // last resort: navigate browser itself (Opera Mini handles TLS on servers)
+      // last resort: navigate host browser directly
       setPanelHtml(
         "<p>Прокси недоступен. Открываю напрямую / через браузер телефона.</p>" +
         "<p><a href='" + url + "'>" + url + "</a></p>" +
