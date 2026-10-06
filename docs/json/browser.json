@@ -1,0 +1,28 @@
+{
+  "name": "Glove Browser JSON",
+  "short_name": "Glove JSON",
+  "version": "1.0.0",
+  "description": "Облегчённая JSON-версия Glove Browser без погоды для Samsung GT, Nokia Series 40/S60 и других старых телефонов",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "lang": "ru",
+  "theme_color": "#234230",
+  "background_color": "#ffffff",
+  "search": {
+    "yandex": "https://yandex.ru/search/?text=",
+    "yandex_http": "http://www.yandex.ru/yandsearch?text="
+  },
+  "proxy": {
+    "enabled": true,
+    "readers": [
+      "https://r.jina.ai/",
+      "https://api.allorigins.win/raw?url="
+    ]
+  },
+  "features": {
+    "weather": false,
+    "adaptive_ui": true,
+    "keypad": true,
+    "touch": true
+  }
+}

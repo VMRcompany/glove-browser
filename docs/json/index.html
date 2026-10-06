@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Glove JSON</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="mode-auto">
+  <div id="chrome">
+    <form id="go" action="#" method="get">
+      <input id="q" name="q" type="text" inputmode="url" enterkeyhint="go" autocomplete="off" placeholder="Яндекс или адрес" />
+      <button id="btnGo" type="submit">OK</button>
+    </form>
+    <div id="soft" class="softkeys" aria-hidden="false">
+      <button type="button" id="skL" class="sk">Меню</button>
+      <button type="button" id="skC" class="sk">Открыть</button>
+      <button type="button" id="skR" class="sk">Назад</button>
+    </div>
+    <div id="menu" class="menu" hidden>
+      <button type="button" data-act="yandex">Яндекс</button>
+      <button type="button" data-act="home">Старт</button>
+      <button type="button" data-act="proxy">Режим прокси: <span id="proxyState">вкл</span></button>
+      <button type="button" data-act="touch">Сенсор / кнопки</button>
+      <button type="button" data-act="close">Закрыть</button>
+    </div>
+  </div>
+  <iframe id="view" name="view" title="Страница" src="about:blank"></iframe>
+  <div id="panel" hidden></div>
+  <p id="hint">Без погоды. Для HTTPS на старых телефонах включён прокси-режим.</p>
+  <script src="app.js"></script>
+</body>
+</html>
